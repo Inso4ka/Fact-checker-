@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+ADMIN_CHAT_IDS_STR = os.getenv("ADMIN_CHAT_ID")
 
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
@@ -23,6 +23,10 @@ if not PERPLEXITY_API_KEY:
     raise ValueError("PERPLEXITY_API_KEY не установлен")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL не установлен")
+if not ADMIN_CHAT_IDS_STR:
+    raise ValueError("ADMIN_CHAT_ID не установлен. Укажите один или несколько Telegram ID через запятую")
+
+ADMIN_CHAT_IDS = [int(id.strip()) for id in ADMIN_CHAT_IDS_STR.split(",")]
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
@@ -53,9 +57,7 @@ OSINT_SYSTEM_PROMPT = load_system_prompt()
 
 def is_admin(user_id: int) -> bool:
     """Проверяет, является ли пользователь админом"""
-    if not ADMIN_CHAT_ID:
-        return False
-    return user_id == int(ADMIN_CHAT_ID)
+    return user_id in ADMIN_CHAT_IDS
 
 
 async def init_db():
@@ -185,15 +187,6 @@ async def cmd_start(message: Message):
     
     response = f"👋 Привет! Я бот для проверки фактов.\n\n"
     response += f"🆔 Ваш Telegram ID: <code>{user_id}</code>\n\n"
-    
-    if not ADMIN_CHAT_ID:
-        response += "⚠️ Бот находится в режиме первоначальной настройки.\n\n"
-        response += "Администратору необходимо:\n"
-        response += "1. Скопировать свой ID выше\n"
-        response += "2. Добавить переменную окружения ADMIN_CHAT_ID с этим ID\n"
-        response += "3. Перезапустить бота"
-        await message.answer(response, parse_mode="HTML")
-        return
     
     if is_admin(user_id):
         response += "👑 Вы администратор бота.\n\n"
@@ -352,15 +345,6 @@ async def handle_message(message: Message):
     if not message.text:
         return
     
-    if not ADMIN_CHAT_ID:
-        await message.answer(
-            "⚠️ Бот находится в режиме первоначальной настройки.\n"
-            "Администратору необходимо установить переменную ADMIN_CHAT_ID.\n\n"
-            f"🆔 Ваш ID: <code>{message.from_user.id}</code>",
-            parse_mode="HTML"
-        )
-        return
-    
     has_subscription = await check_subscription(message.from_user.id)
     
     if not has_subscription:
@@ -371,20 +355,21 @@ async def handle_message(message: Message):
             parse_mode="HTML"
         )
         
-        try:
-            username = message.from_user.username or "без username"
-            await bot.send_message(
-                int(ADMIN_CHAT_ID),
-                f"🔔 Новый запрос от пользователя без подписки:\n\n"
-                f"ID: <code>{message.from_user.id}</code>\n"
-                f"Username: @{username}\n"
-                f"Имя: {message.from_user.full_name}\n\n"
-                f"Для выдачи подписки используйте:\n"
-                f"<code>/grant {message.from_user.id} 1M</code>",
-                parse_mode="HTML"
-            )
-        except Exception as e:
-            logger.error(f"Не удалось уведомить админа: {e}")
+        for admin_id in ADMIN_CHAT_IDS:
+            try:
+                username = message.from_user.username or "без username"
+                await bot.send_message(
+                    admin_id,
+                    f"🔔 Новый запрос от пользователя без подписки:\n\n"
+                    f"ID: <code>{message.from_user.id}</code>\n"
+                    f"Username: @{username}\n"
+                    f"Имя: {message.from_user.full_name}\n\n"
+                    f"Для выдачи подписки используйте:\n"
+                    f"<code>/grant {message.from_user.id} 1M</code>",
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                logger.error(f"Не удалось уведомить админа {admin_id}: {e}")
         
         return
     
@@ -431,12 +416,7 @@ async def main():
     asyncio.create_task(subscription_cleanup_task())
     
     logger.info(f"✅ Бот инициализирован")
-    
-    if ADMIN_CHAT_ID:
-        logger.info(f"👤 Admin ID: {ADMIN_CHAT_ID}")
-    else:
-        logger.warning("⚠️ ADMIN_CHAT_ID не установлен. Бот в режиме первоначальной настройки.")
-        logger.warning("⚠️ Напишите боту /start для получения своего ID, затем добавьте ADMIN_CHAT_ID в переменные окружения.")
+    logger.info(f"👤 Admin IDs: {', '.join(map(str, ADMIN_CHAT_IDS))}")
     
     try:
         await dp.start_polling(bot, skip_updates=True)
