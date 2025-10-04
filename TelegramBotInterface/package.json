@@ -4,7 +4,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "mastra dev",
+    "dev": "bash scripts/start-all.sh",
+    "dev:mastra": "mastra dev",
+    "dev:inngest": "bash scripts/inngest.sh",
     "build": "mastra build",
     "check": "tsc",
     "check:format": "prettier --check '**/*.ts'",
