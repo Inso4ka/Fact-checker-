@@ -50,7 +50,7 @@ The application uses a **single-runtime Python architecture**:
 1. User sends message to bot
 2. Bot receives via Telegram long polling
 3. Checks user subscription status in database
-4. If no subscription: directs user to admin @itroyen and notifies admin
+4. If no subscription: directs user to send their ID to admin, notifies admin with user details
 5. If subscription active: Sends "⏳ Анализирую ваш запрос..." indicator
 6. Loads system prompt from `system_prompt.txt`
 7. Calls Perplexity API with comprehensive OSINT prompt + user message
@@ -96,18 +96,25 @@ The bot uses **PostgreSQL** for subscription management:
 - **Telegram Bot**: Token-based (`TELEGRAM_BOT_TOKEN` environment variable)
 - **Perplexity AI**: API key authentication (`PERPLEXITY_API_KEY`)
 - **Database**: Connection string (`DATABASE_URL`)
+- **Admin**: Telegram user ID (`ADMIN_CHAT_ID` environment variable)
 
 ### Access Control
 
 **Subscription System**:
 - Only users with active subscriptions can use fact-checking functionality
-- New users are directed to admin @itroyen for subscription activation
-- Admin receives automatic notifications when unauthorized users attempt to use the bot
+- New users receive their Telegram ID and are directed to send it to admin
+- Admin receives automatic notifications with user details (ID, username, name) when unauthorized users attempt to use the bot
 
-**Admin Control** (username: `@itroyen`):
+**Admin Control** (identified by Telegram ID in `ADMIN_CHAT_ID`):
 - `/grant <user_id> <duration>` - Grant subscription (1m, 1d, 1M, 6M, 1y)
 - `/revoke <user_id>` - Revoke subscription
 - `/list` - View all active subscriptions
+
+**Initial Setup**:
+1. Start bot without `ADMIN_CHAT_ID` set (setup mode)
+2. Send `/start` to bot to get your Telegram ID
+3. Add `ADMIN_CHAT_ID` environment variable with your ID
+4. Restart bot - you now have admin access
 
 **User Commands**:
 - `/start` - Bot introduction and subscription status
@@ -118,7 +125,7 @@ The bot uses **PostgreSQL** for subscription management:
 - Automatically removes expired subscriptions from database
 - Users lose access immediately upon expiration
 
-**Rationale**: Subscription system prevents API quota abuse and allows controlled access. Admin-only management ensures proper oversight. Time-based subscriptions provide flexibility for different access levels.
+**Rationale**: Subscription system prevents API quota abuse and allows controlled access. Admin identification by Telegram ID (not username) is more secure and reliable since usernames can be changed. Admin-only management ensures proper oversight. Time-based subscriptions provide flexibility for different access levels.
 
 ## External Dependencies
 
@@ -145,4 +152,5 @@ The bot uses **PostgreSQL** for subscription management:
 **Replit deployment**:
 - Simple VM deployment with Python runtime
 - Environment variables managed through Replit Secrets
+- Required secrets: `TELEGRAM_BOT_TOKEN`, `PERPLEXITY_API_KEY`, `DATABASE_URL`, `ADMIN_CHAT_ID`
 - Continuous running for long polling
