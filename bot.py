@@ -15,8 +15,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
-ADMIN_USERNAME = "itroyen"
-ADMIN_CHAT_ID_ENV = os.getenv("ADMIN_CHAT_ID")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
@@ -34,7 +33,6 @@ perplexity_client = AsyncOpenAI(
 )
 
 db_pool: Optional[asyncpg.Pool] = None
-admin_chat_id: Optional[int] = None
 
 
 def load_system_prompt() -> str:
@@ -53,40 +51,11 @@ def load_system_prompt() -> str:
 OSINT_SYSTEM_PROMPT = load_system_prompt()
 
 
-async def load_admin_chat_id():
-    """Загружает admin_chat_id из переменной окружения или базы данных"""
-    global admin_chat_id
-    
-    if ADMIN_CHAT_ID_ENV:
-        admin_chat_id = int(ADMIN_CHAT_ID_ENV)
-        logger.info(f"✅ Admin chat ID загружен из переменной окружения: {admin_chat_id}")
-        await save_admin_chat_id(admin_chat_id)
-        return
-    
-    async with db_pool.acquire() as conn:
-        result = await conn.fetchrow(
-            "SELECT value FROM config WHERE key = 'admin_chat_id'"
-        )
-        if result:
-            admin_chat_id = int(result['value'])
-            logger.info(f"✅ Admin chat ID загружен из БД: {admin_chat_id}")
-        else:
-            logger.warning(f"⚠️ Admin chat ID не установлен. Он будет автоматически сохранен при первом сообщении от @{ADMIN_USERNAME}")
-
-
-async def save_admin_chat_id(chat_id: int):
-    """Сохраняет admin_chat_id в базу данных"""
-    async with db_pool.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO config (key, value, updated_at)
-            VALUES ('admin_chat_id', $1, NOW())
-            ON CONFLICT (key)
-            DO UPDATE SET value = $1, updated_at = NOW()
-            """,
-            str(chat_id)
-        )
-    logger.info(f"✅ Admin chat ID сохранен в БД: {chat_id}")
+def is_admin(user_id: int) -> bool:
+    """Проверяет, является ли пользователь админом"""
+    if not ADMIN_CHAT_ID:
+        return False
+    return user_id == int(ADMIN_CHAT_ID)
 
 
 async def init_db():
@@ -94,8 +63,6 @@ async def init_db():
     global db_pool
     db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
     logger.info("✅ Подключение к базе данных установлено")
-    
-    await load_admin_chat_id()
 
 
 async def close_db():
@@ -214,40 +181,47 @@ async def check_fact(user_message: str) -> str:
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    global admin_chat_id
+    user_id = message.from_user.id
     
-    if message.from_user.username == ADMIN_USERNAME and admin_chat_id is None:
-        admin_chat_id = message.from_user.id
-        await save_admin_chat_id(admin_chat_id)
-        logger.info(f"✅ Admin chat ID автоматически обнаружен и сохранен: {admin_chat_id}")
+    response = f"👋 Привет! Я бот для проверки фактов.\n\n"
+    response += f"🆔 Ваш Telegram ID: <code>{user_id}</code>\n\n"
     
-    has_subscription = await check_subscription(message.from_user.id)
+    if not ADMIN_CHAT_ID:
+        response += "⚠️ Бот находится в режиме первоначальной настройки.\n\n"
+        response += "Администратору необходимо:\n"
+        response += "1. Скопировать свой ID выше\n"
+        response += "2. Добавить переменную окружения ADMIN_CHAT_ID с этим ID\n"
+        response += "3. Перезапустить бота"
+        await message.answer(response, parse_mode="HTML")
+        return
     
-    if has_subscription:
-        await message.answer(
-            "👋 Привет! Я бот для проверки фактов.\n\n"
-            "✅ У вас есть активная подписка.\n"
-            "Просто отправьте мне любое утверждение, и я проверю его достоверность."
-        )
+    if is_admin(user_id):
+        response += "👑 Вы администратор бота.\n\n"
+        response += "Доступные команды:\n"
+        response += "• /grant <user_id> <duration> - Выдать подписку\n"
+        response += "• /revoke <user_id> - Отозвать подписку\n"
+        response += "• /list - Список подписок\n"
+        response += "• /mystatus - Проверить свою подписку"
     else:
-        await message.answer(
-            "👋 Привет! Я бот для проверки фактов.\n\n"
-            "❌ У вас нет активной подписки.\n"
-            f"Для получения доступа обратитесь к @{ADMIN_USERNAME}"
-        )
+        has_subscription = await check_subscription(user_id)
+        
+        if has_subscription:
+            response += "✅ У вас есть активная подписка.\n"
+            response += "Просто отправьте мне любое утверждение, и я проверю его достоверность."
+        else:
+            response += "❌ У вас нет активной подписки.\n"
+            response += f"Для получения доступа отправьте свой ID администратору.\n\n"
+            response += "Команды:\n"
+            response += "• /mystatus - Проверить статус подписки"
+    
+    await message.answer(response, parse_mode="HTML")
 
 
 @dp.message(Command("grant"))
 async def cmd_grant(message: Message):
-    global admin_chat_id
-    
-    if message.from_user.username != ADMIN_USERNAME:
+    if not is_admin(message.from_user.id):
         await message.answer("❌ У вас нет прав для выполнения этой команды.")
         return
-    
-    if admin_chat_id is None:
-        admin_chat_id = message.from_user.id
-        await save_admin_chat_id(admin_chat_id)
     
     try:
         parts = message.text.split()
@@ -282,15 +256,9 @@ async def cmd_grant(message: Message):
 
 @dp.message(Command("revoke"))
 async def cmd_revoke(message: Message):
-    global admin_chat_id
-    
-    if message.from_user.username != ADMIN_USERNAME:
+    if not is_admin(message.from_user.id):
         await message.answer("❌ У вас нет прав для выполнения этой команды.")
         return
-    
-    if admin_chat_id is None:
-        admin_chat_id = message.from_user.id
-        await save_admin_chat_id(admin_chat_id)
     
     try:
         parts = message.text.split()
@@ -317,15 +285,9 @@ async def cmd_revoke(message: Message):
 
 @dp.message(Command("list"))
 async def cmd_list(message: Message):
-    global admin_chat_id
-    
-    if message.from_user.username != ADMIN_USERNAME:
+    if not is_admin(message.from_user.id):
         await message.answer("❌ У вас нет прав для выполнения этой команды.")
         return
-    
-    if admin_chat_id is None:
-        admin_chat_id = message.from_user.id
-        await save_admin_chat_id(admin_chat_id)
     
     try:
         subs = await list_subscriptions()
@@ -376,7 +338,9 @@ async def cmd_mystatus(message: Message):
         else:
             await message.answer(
                 f"❌ У вас нет активной подписки\n"
-                f"Для получения доступа обратитесь к @{ADMIN_USERNAME}"
+                f"🆔 Ваш ID: <code>{message.from_user.id}</code>\n\n"
+                f"Отправьте свой ID администратору для получения доступа.",
+                parse_mode="HTML"
             )
     
     except Exception as e:
@@ -385,43 +349,42 @@ async def cmd_mystatus(message: Message):
 
 @dp.message()
 async def handle_message(message: Message):
-    global admin_chat_id
-    
     if not message.text:
         return
     
-    if message.from_user.username == ADMIN_USERNAME and admin_chat_id is None:
-        admin_chat_id = message.from_user.id
-        await save_admin_chat_id(admin_chat_id)
-        logger.info(f"✅ Admin chat ID автоматически обнаружен и сохранен: {admin_chat_id}")
+    if not ADMIN_CHAT_ID:
+        await message.answer(
+            "⚠️ Бот находится в режиме первоначальной настройки.\n"
+            "Администратору необходимо установить переменную ADMIN_CHAT_ID.\n\n"
+            f"🆔 Ваш ID: <code>{message.from_user.id}</code>",
+            parse_mode="HTML"
+        )
+        return
     
     has_subscription = await check_subscription(message.from_user.id)
     
     if not has_subscription:
         await message.answer(
-            f"❌ У вас нет активной подписки.\n"
-            f"Для получения доступа обратитесь к @{ADMIN_USERNAME}\n\n"
-            f"Ваш ID: <code>{message.from_user.id}</code>",
+            f"❌ У вас нет активной подписки.\n\n"
+            f"🆔 Ваш ID: <code>{message.from_user.id}</code>\n\n"
+            f"Отправьте свой ID администратору для получения доступа.",
             parse_mode="HTML"
         )
         
-        if admin_chat_id:
-            try:
-                username = message.from_user.username or "без username"
-                await bot.send_message(
-                    admin_chat_id,
-                    f"🔔 Новый запрос от пользователя без подписки:\n\n"
-                    f"ID: <code>{message.from_user.id}</code>\n"
-                    f"Username: @{username}\n"
-                    f"Имя: {message.from_user.full_name}\n\n"
-                    f"Для выдачи подписки используйте:\n"
-                    f"<code>/grant {message.from_user.id} 1M</code>",
-                    parse_mode="HTML"
-                )
-            except Exception as e:
-                logger.error(f"Не удалось уведомить админа: {e}")
-        else:
-            logger.warning(f"Не могу уведомить админа - admin_chat_id не установлен. Админ должен использовать любую команду (/grant, /revoke, /list)")
+        try:
+            username = message.from_user.username or "без username"
+            await bot.send_message(
+                int(ADMIN_CHAT_ID),
+                f"🔔 Новый запрос от пользователя без подписки:\n\n"
+                f"ID: <code>{message.from_user.id}</code>\n"
+                f"Username: @{username}\n"
+                f"Имя: {message.from_user.full_name}\n\n"
+                f"Для выдачи подписки используйте:\n"
+                f"<code>/grant {message.from_user.id} 1M</code>",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error(f"Не удалось уведомить админа: {e}")
         
         return
     
@@ -468,7 +431,12 @@ async def main():
     asyncio.create_task(subscription_cleanup_task())
     
     logger.info(f"✅ Бот инициализирован")
-    logger.info(f"👤 Админ: @{ADMIN_USERNAME}")
+    
+    if ADMIN_CHAT_ID:
+        logger.info(f"👤 Admin ID: {ADMIN_CHAT_ID}")
+    else:
+        logger.warning("⚠️ ADMIN_CHAT_ID не установлен. Бот в режиме первоначальной настройки.")
+        logger.warning("⚠️ Напишите боту /start для получения своего ID, затем добавьте ADMIN_CHAT_ID в переменные окружения.")
     
     try:
         await dp.start_polling(bot, skip_updates=True)
