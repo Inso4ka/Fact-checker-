@@ -27,7 +27,8 @@ The application uses a **single-runtime Python architecture**:
 - Clean, simple implementation using aiogram 3.15.0
 - Long polling for reliable message delivery
 - Direct async integration with Perplexity API via OpenAI SDK
-- Stateless fact-checking flow
+- PostgreSQL database for subscription management
+- Admin-controlled subscription system
 
 **Design Decision**: Python chosen for simplicity, maintainability, and ease of deployment. The async architecture with aiogram provides excellent performance without the complexity of multi-service orchestration.
 
@@ -48,12 +49,14 @@ The application uses a **single-runtime Python architecture**:
 **Processing Flow**:
 1. User sends message to bot
 2. Bot receives via Telegram long polling
-3. Sends "⏳ Анализирую ваш запрос..." indicator
-4. Loads system prompt from `system_prompt.txt`
-5. Calls Perplexity API with comprehensive OSINT prompt + user message
-6. AI performs detailed analysis internally, returns concise summary
-7. Formats and sends HTML response to user
-8. Handles message chunking for long responses (>4096 chars)
+3. Checks user subscription status in database
+4. If no subscription: directs user to admin @itroyen and notifies admin
+5. If subscription active: Sends "⏳ Анализирую ваш запрос..." indicator
+6. Loads system prompt from `system_prompt.txt`
+7. Calls Perplexity API with comprehensive OSINT prompt + user message
+8. AI performs detailed analysis internally, returns concise summary
+9. Formats and sends HTML response to user
+10. Handles message chunking for long responses (>4096 chars)
 
 **Rationale**: Separating the prompt into an external file allows for easy iteration and improvement of the OSINT methodology without code changes. The prompt instructs the AI to perform thorough analysis internally but present only essential conclusions and sources to users.
 
@@ -70,22 +73,52 @@ The bot enforces strict HTML formatting with **two sections only**:
 
 ## Data Storage Solutions
 
-### No Database Required
-The bot operates **statelessly** - no database or persistent storage is needed.
+### PostgreSQL Database (Replit Neon)
+The bot uses **PostgreSQL** for subscription management:
 
-**Rationale**: Fact-checking doesn't require conversation history or state. Each request is independent, which simplifies deployment and reduces costs.
+**Schema**:
+- `subscriptions` table:
+  - `user_id` (BIGINT, PRIMARY KEY): Telegram user ID
+  - `username` (VARCHAR): Telegram username
+  - `expires_at` (TIMESTAMP): Subscription expiration date/time
+  - `created_at` (TIMESTAMP): Subscription creation date/time
+
+**Operations**:
+- Subscription checks on every message
+- Automatic cleanup of expired subscriptions every 10 minutes
+- Admin commands for subscription management
+
+**Rationale**: Subscription system requires persistent storage to track user access. PostgreSQL chosen for reliability and Replit's built-in support. Background cleanup task ensures database stays clean without manual intervention.
 
 ## Authentication and Authorization
 
 ### API Authentication
 - **Telegram Bot**: Token-based (`TELEGRAM_BOT_TOKEN` environment variable)
 - **Perplexity AI**: API key authentication (`PERPLEXITY_API_KEY`)
-- **Webhook Security**: Telegram's built-in webhook validation (bot token in URL)
+- **Database**: Connection string (`DATABASE_URL`)
 
 ### Access Control
-**None implemented** - The bot is open to any Telegram user who can message it. No user authentication or rate limiting visible in the codebase.
 
-**Security Consideration**: Production deployment should implement rate limiting and potentially user whitelisting to prevent API quota abuse.
+**Subscription System**:
+- Only users with active subscriptions can use fact-checking functionality
+- New users are directed to admin @itroyen for subscription activation
+- Admin receives automatic notifications when unauthorized users attempt to use the bot
+
+**Admin Control** (username: `@itroyen`):
+- `/grant <user_id> <duration>` - Grant subscription (1m, 1d, 1M, 6M, 1y)
+- `/revoke <user_id>` - Revoke subscription
+- `/list` - View all active subscriptions
+
+**User Commands**:
+- `/start` - Bot introduction and subscription status
+- `/mystatus` - Check own subscription status
+
+**Automatic Expiration**:
+- Background task runs every 10 minutes
+- Automatically removes expired subscriptions from database
+- Users lose access immediately upon expiration
+
+**Rationale**: Subscription system prevents API quota abuse and allows controlled access. Admin-only management ensures proper oversight. Time-based subscriptions provide flexibility for different access levels.
 
 ## External Dependencies
 
@@ -106,7 +139,7 @@ The bot operates **statelessly** - no database or persistent storage is needed.
 ### Python Packages
 - **aiogram** (3.15.0): Modern async Telegram Bot framework
 - **openai** (1.58.1): OpenAI SDK (used with Perplexity base URL)
-- **python-dotenv** (1.0.1): Environment variable management
+- **asyncpg** (0.30.0): Async PostgreSQL driver for subscription management
 
 ### Deployment Platform
 **Replit deployment**:

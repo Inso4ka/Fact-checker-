@@ -16,6 +16,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 ADMIN_USERNAME = "itroyen"
+ADMIN_CHAT_ID_ENV = os.getenv("ADMIN_CHAT_ID")
 
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
@@ -33,6 +34,7 @@ perplexity_client = AsyncOpenAI(
 )
 
 db_pool: Optional[asyncpg.Pool] = None
+admin_chat_id: Optional[int] = None
 
 
 def load_system_prompt() -> str:
@@ -51,11 +53,49 @@ def load_system_prompt() -> str:
 OSINT_SYSTEM_PROMPT = load_system_prompt()
 
 
+async def load_admin_chat_id():
+    """Загружает admin_chat_id из переменной окружения или базы данных"""
+    global admin_chat_id
+    
+    if ADMIN_CHAT_ID_ENV:
+        admin_chat_id = int(ADMIN_CHAT_ID_ENV)
+        logger.info(f"✅ Admin chat ID загружен из переменной окружения: {admin_chat_id}")
+        await save_admin_chat_id(admin_chat_id)
+        return
+    
+    async with db_pool.acquire() as conn:
+        result = await conn.fetchrow(
+            "SELECT value FROM config WHERE key = 'admin_chat_id'"
+        )
+        if result:
+            admin_chat_id = int(result['value'])
+            logger.info(f"✅ Admin chat ID загружен из БД: {admin_chat_id}")
+        else:
+            logger.warning(f"⚠️ Admin chat ID не установлен. Он будет автоматически сохранен при первом сообщении от @{ADMIN_USERNAME}")
+
+
+async def save_admin_chat_id(chat_id: int):
+    """Сохраняет admin_chat_id в базу данных"""
+    async with db_pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO config (key, value, updated_at)
+            VALUES ('admin_chat_id', $1, NOW())
+            ON CONFLICT (key)
+            DO UPDATE SET value = $1, updated_at = NOW()
+            """,
+            str(chat_id)
+        )
+    logger.info(f"✅ Admin chat ID сохранен в БД: {chat_id}")
+
+
 async def init_db():
     """Инициализирует пул соединений с БД"""
     global db_pool
     db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
     logger.info("✅ Подключение к базе данных установлено")
+    
+    await load_admin_chat_id()
 
 
 async def close_db():
@@ -174,6 +214,13 @@ async def check_fact(user_message: str) -> str:
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
+    global admin_chat_id
+    
+    if message.from_user.username == ADMIN_USERNAME and admin_chat_id is None:
+        admin_chat_id = message.from_user.id
+        await save_admin_chat_id(admin_chat_id)
+        logger.info(f"✅ Admin chat ID автоматически обнаружен и сохранен: {admin_chat_id}")
+    
     has_subscription = await check_subscription(message.from_user.id)
     
     if has_subscription:
@@ -192,9 +239,15 @@ async def cmd_start(message: Message):
 
 @dp.message(Command("grant"))
 async def cmd_grant(message: Message):
+    global admin_chat_id
+    
     if message.from_user.username != ADMIN_USERNAME:
         await message.answer("❌ У вас нет прав для выполнения этой команды.")
         return
+    
+    if admin_chat_id is None:
+        admin_chat_id = message.from_user.id
+        await save_admin_chat_id(admin_chat_id)
     
     try:
         parts = message.text.split()
@@ -229,9 +282,15 @@ async def cmd_grant(message: Message):
 
 @dp.message(Command("revoke"))
 async def cmd_revoke(message: Message):
+    global admin_chat_id
+    
     if message.from_user.username != ADMIN_USERNAME:
         await message.answer("❌ У вас нет прав для выполнения этой команды.")
         return
+    
+    if admin_chat_id is None:
+        admin_chat_id = message.from_user.id
+        await save_admin_chat_id(admin_chat_id)
     
     try:
         parts = message.text.split()
@@ -258,9 +317,15 @@ async def cmd_revoke(message: Message):
 
 @dp.message(Command("list"))
 async def cmd_list(message: Message):
+    global admin_chat_id
+    
     if message.from_user.username != ADMIN_USERNAME:
         await message.answer("❌ У вас нет прав для выполнения этой команды.")
         return
+    
+    if admin_chat_id is None:
+        admin_chat_id = message.from_user.id
+        await save_admin_chat_id(admin_chat_id)
     
     try:
         subs = await list_subscriptions()
@@ -320,8 +385,15 @@ async def cmd_mystatus(message: Message):
 
 @dp.message()
 async def handle_message(message: Message):
+    global admin_chat_id
+    
     if not message.text:
         return
+    
+    if message.from_user.username == ADMIN_USERNAME and admin_chat_id is None:
+        admin_chat_id = message.from_user.id
+        await save_admin_chat_id(admin_chat_id)
+        logger.info(f"✅ Admin chat ID автоматически обнаружен и сохранен: {admin_chat_id}")
     
     has_subscription = await check_subscription(message.from_user.id)
     
@@ -333,20 +405,11 @@ async def handle_message(message: Message):
             parse_mode="HTML"
         )
         
-        try:
-            admin_id = None
-            async with db_pool.acquire() as conn:
-                result = await conn.fetchrow(
-                    "SELECT user_id FROM subscriptions WHERE username = $1 LIMIT 1",
-                    ADMIN_USERNAME
-                )
-                if result:
-                    admin_id = result['user_id']
-            
-            if admin_id:
+        if admin_chat_id:
+            try:
                 username = message.from_user.username or "без username"
                 await bot.send_message(
-                    admin_id,
+                    admin_chat_id,
                     f"🔔 Новый запрос от пользователя без подписки:\n\n"
                     f"ID: <code>{message.from_user.id}</code>\n"
                     f"Username: @{username}\n"
@@ -355,8 +418,10 @@ async def handle_message(message: Message):
                     f"<code>/grant {message.from_user.id} 1M</code>",
                     parse_mode="HTML"
                 )
-        except Exception as e:
-            logger.error(f"Не удалось уведомить админа: {e}")
+            except Exception as e:
+                logger.error(f"Не удалось уведомить админа: {e}")
+        else:
+            logger.warning(f"Не могу уведомить админа - admin_chat_id не установлен. Админ должен использовать любую команду (/grant, /revoke, /list)")
         
         return
     
