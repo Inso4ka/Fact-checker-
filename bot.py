@@ -25,27 +25,19 @@ perplexity_client = AsyncOpenAI(
     base_url="https://api.perplexity.ai"
 )
 
-OSINT_SYSTEM_PROMPT = """Вы — фактчекер. Проверяйте достоверность утверждений кратко и по делу.
+def load_system_prompt() -> str:
+    """Загружает system prompt из файла"""
+    try:
+        with open("system_prompt.txt", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        logger.error("Файл system_prompt.txt не найден")
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при чтении system_prompt.txt: {e}")
+        raise
 
-СТРОГО следуйте формату ответа (используйте HTML-теги для форматирования):
-
-<b>ВЫВОД:</b> [1-2 предложения] Утверждение истинно/ложно/частично верно
-
-<b>ОБОСНОВАНИЕ:</b> [2-3 предложения] Ключевые факты
-
-<b>ИСТОЧНИКИ:</b>
-[URL 1]
-[URL 2]
-[URL 3]
-
-КРИТИЧЕСКИ ВАЖНО:
-- Всегда пишите заголовки ЗАГЛАВНЫМИ буквами: "ВЫВОД:", "ОБОСНОВАНИЕ:", "ИСТОЧНИКИ:"
-- Используйте <b></b> для выделения заголовков
-- НЕ используйте * или ** (только <b></b>)
-- Отвечайте кратко и конкретно
-- Обязательно укажите 2-3 проверенных источника
-- Если данных недостаточно — прямо об этом скажите
-- Отвечайте на языке пользователя (русском или другом)"""
+OSINT_SYSTEM_PROMPT = load_system_prompt()
 
 
 async def check_fact(user_message: str) -> str:

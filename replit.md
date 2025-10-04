@@ -33,29 +33,40 @@ The application uses a **single-runtime Python architecture**:
 
 ### AI Agent System
 - **Model**: Perplexity `sonar-pro` (web-search capable)
-- **System Prompt**: Russian-language OSINT fact-checking instructions
+- **System Prompt**: Comprehensive OSINT fact-checking methodology loaded from `system_prompt.txt`
 - **Operation**: Stateless - each request is independent
 - **Configuration**: Temperature 0.2 for consistent, factual responses
-  
+
+**System Prompt Structure** (`system_prompt.txt`):
+- Detailed 5-step OSINT verification methodology
+- Hypothesis formulation (true/false)
+- Verification plan with multi-source checking
+- Research across official registries, news aggregators, social media, OSINT tools
+- Evidence synthesis and gap analysis
+- Concise output formatting for users
+
 **Processing Flow**:
 1. User sends message to bot
 2. Bot receives via Telegram long polling
 3. Sends "⏳ Анализирую ваш запрос..." indicator
-4. Calls Perplexity API with system prompt + user message
-5. Formats and sends HTML response to user
-6. Handles message chunking for long responses (>4096 chars)
+4. Loads system prompt from `system_prompt.txt`
+5. Calls Perplexity API with comprehensive OSINT prompt + user message
+6. AI performs detailed analysis internally, returns concise summary
+7. Formats and sends HTML response to user
+8. Handles message chunking for long responses (>4096 chars)
 
-**Rationale**: Direct API integration is simpler, faster, and easier to debug than complex workflow systems. The stateless design ensures scalability and predictable behavior.
-
+**Rationale**: Separating the prompt into an external file allows for easy iteration and improvement of the OSINT methodology without code changes. The prompt instructs the AI to perform thorough analysis internally but present only essential conclusions and sources to users.
 
 ### Response Format
-The bot enforces strict HTML formatting:
+The bot enforces strict HTML formatting with **two sections only**:
 - **Bold headers** using `<b>` tags (not markdown)
-- **Three sections**: ВЫВОД (Conclusion), ОБОСНОВАНИЕ (Justification), ИСТОЧНИКИ (Sources)
+- **Two sections**: 
+  - **ВЫВОД** (Conclusion): 2-3 sentences with clear verdict and confidence level
+  - **ИСТОЧНИКИ** (Sources): 3-5 URLs with brief descriptions
 - **Multilingual**: Responds in user's language (primarily Russian)
-- **Concise**: 1-2 sentences for conclusions, 2-3 for explanations
+- **Concise**: No lengthy explanations - just verdict and sources
 
-**Design Decision**: HTML formatting chosen over Markdown because Telegram's Bot API supports HTML natively, ensuring consistent rendering.
+**Design Decision**: Removed ОБОСНОВАНИЕ (Justification) section to keep responses brief. Users get the conclusion and can verify sources themselves. HTML formatting chosen because Telegram's Bot API supports it natively.
 
 ## Data Storage Solutions
 
