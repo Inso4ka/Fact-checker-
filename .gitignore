@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+TelegramBotInterface/node_modules/
+
+# Build outputs
+dist/
+build/
+TelegramBotInterface/dist/
+TelegramBotInterface/build/
+
+# Environment variables (managed by Replit)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# TypeScript
+*.tsbuildinfo
+
+# Cache
+.cache/
+.npm/
+.eslintcache
+
+# Mastra
+.mastra/
