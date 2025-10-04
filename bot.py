@@ -1,7 +1,7 @@
 import os
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -53,6 +53,8 @@ def load_system_prompt() -> str:
 
 
 OSINT_SYSTEM_PROMPT = load_system_prompt()
+
+MOSCOW_TZ = timezone(timedelta(hours=3))
 
 
 def is_admin(user_id: int) -> bool:
@@ -248,13 +250,14 @@ async def cmd_grant(message: Message):
                     "1y": "1 год"
                 }.get(duration, duration)
                 
-                expires_str = expires_at.strftime("%Y-%m-%d %H:%M")
+                moscow_time = expires_at.replace(tzinfo=timezone.utc).astimezone(MOSCOW_TZ)
+                expires_str = moscow_time.strftime("%Y-%m-%d %H:%M")
                 
                 await bot.send_message(
                     user_id,
                     f"🎉 Вам выдана подписка на бота!\n\n"
                     f"⏰ Срок: {duration_text}\n"
-                    f"📅 Действует до: {expires_str}\n\n"
+                    f"📅 Действует до: {expires_str} (МСК)\n\n"
                     f"Теперь вы можете отправлять мне любые утверждения для проверки фактов."
                 )
             except Exception as e:
@@ -324,8 +327,10 @@ async def cmd_list(message: Message):
         for sub in subs:
             user_id = sub['user_id']
             username = sub['username'] or "N/A"
-            expires = sub['expires_at'].strftime("%Y-%m-%d %H:%M")
-            created = sub['created_at'].strftime("%Y-%m-%d %H:%M")
+            moscow_expires = sub['expires_at'].replace(tzinfo=timezone.utc).astimezone(MOSCOW_TZ)
+            moscow_created = sub['created_at'].replace(tzinfo=timezone.utc).astimezone(MOSCOW_TZ)
+            expires = moscow_expires.strftime("%Y-%m-%d %H:%M")
+            created = moscow_created.strftime("%Y-%m-%d %H:%M")
             
             text += f"👤 ID: <code>{user_id}</code>\n"
             text += f"   Username: @{username}\n"
@@ -353,10 +358,11 @@ async def cmd_mystatus(message: Message):
             )
         
         if result:
-            expires = result['expires_at'].strftime("%Y-%m-%d %H:%M")
+            moscow_time = result['expires_at'].replace(tzinfo=timezone.utc).astimezone(MOSCOW_TZ)
+            expires = moscow_time.strftime("%Y-%m-%d %H:%M")
             await message.answer(
                 f"✅ У вас есть активная подписка\n"
-                f"📅 Действует до: {expires}"
+                f"📅 Действует до: {expires} (МСК)"
             )
         else:
             await message.answer(
