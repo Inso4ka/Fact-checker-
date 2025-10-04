@@ -90,7 +90,7 @@ async def check_subscription(user_id: int) -> bool:
         return datetime.now() < expires_at
 
 
-async def grant_subscription(user_id: int, username: Optional[str], duration: str) -> bool:
+async def grant_subscription(user_id: int, username: Optional[str], duration: str) -> tuple[bool, Optional[datetime]]:
     """Выдаёт подписку пользователю"""
     durations = {
         "1m": timedelta(minutes=1),
@@ -101,7 +101,7 @@ async def grant_subscription(user_id: int, username: Optional[str], duration: st
     }
     
     if duration not in durations:
-        return False
+        return False, None
     
     expires_at = datetime.now() + durations[duration]
     
@@ -116,7 +116,7 @@ async def grant_subscription(user_id: int, username: Optional[str], duration: st
             user_id, username, expires_at
         )
     
-    return True
+    return True, expires_at
 
 
 async def revoke_subscription(user_id: int) -> bool:
@@ -234,10 +234,31 @@ async def cmd_grant(message: Message):
         user_id = int(parts[1])
         duration = parts[2]
         
-        success = await grant_subscription(user_id, None, duration)
+        success, expires_at = await grant_subscription(user_id, None, duration)
         
         if success:
             await message.answer(f"✅ Подписка успешно выдана пользователю {user_id} на период {duration}")
+            
+            try:
+                duration_text = {
+                    "1m": "1 минуту",
+                    "1d": "1 день",
+                    "1M": "1 месяц",
+                    "6M": "6 месяцев",
+                    "1y": "1 год"
+                }.get(duration, duration)
+                
+                expires_str = expires_at.strftime("%Y-%m-%d %H:%M")
+                
+                await bot.send_message(
+                    user_id,
+                    f"🎉 Вам выдана подписка на бота!\n\n"
+                    f"⏰ Срок: {duration_text}\n"
+                    f"📅 Действует до: {expires_str}\n\n"
+                    f"Теперь вы можете отправлять мне любые утверждения для проверки фактов."
+                )
+            except Exception as e:
+                logger.error(f"Не удалось уведомить пользователя {user_id}: {e}")
         else:
             await message.answer("❌ Неверный период подписки")
     
@@ -267,6 +288,15 @@ async def cmd_revoke(message: Message):
         
         if success:
             await message.answer(f"✅ Подписка отозвана у пользователя {user_id}")
+            
+            try:
+                await bot.send_message(
+                    user_id,
+                    f"❌ Ваша подписка на бота была отозвана.\n\n"
+                    f"Для продления доступа обратитесь к администратору."
+                )
+            except Exception as e:
+                logger.error(f"Не удалось уведомить пользователя {user_id}: {e}")
         else:
             await message.answer("❌ Подписка не найдена")
     
