@@ -105,16 +105,16 @@ The bot uses **PostgreSQL** for subscription management:
 - New users receive their Telegram ID and are directed to send it to admin
 - Admin receives automatic notifications with user details (ID, username, name) when unauthorized users attempt to use the bot
 
-**Admin Control** (identified by Telegram ID in `ADMIN_CHAT_ID`):
+**Admin Control** (identified by Telegram IDs in `ADMIN_CHAT_ID`):
 - `/grant <user_id> <duration>` - Grant subscription (1m, 1d, 1M, 6M, 1y)
 - `/revoke <user_id>` - Revoke subscription
 - `/list` - View all active subscriptions
 
-**Initial Setup**:
-1. Start bot without `ADMIN_CHAT_ID` set (setup mode)
-2. Send `/start` to bot to get your Telegram ID
-3. Add `ADMIN_CHAT_ID` environment variable with your ID
-4. Restart bot - you now have admin access
+**Multiple Admins Support**:
+- `ADMIN_CHAT_ID` can contain one or more Telegram IDs separated by commas
+- Example: `123456789` (one admin) or `123456789,987654321,111222333` (multiple admins)
+- All admins have equal rights and receive notifications about new users
+- To get your Telegram ID: send `/start` to the bot
 
 **User Commands**:
 - `/start` - Bot introduction and subscription status
@@ -125,7 +125,7 @@ The bot uses **PostgreSQL** for subscription management:
 - Automatically removes expired subscriptions from database
 - Users lose access immediately upon expiration
 
-**Rationale**: Subscription system prevents API quota abuse and allows controlled access. Admin identification by Telegram ID (not username) is more secure and reliable since usernames can be changed. Admin-only management ensures proper oversight. Time-based subscriptions provide flexibility for different access levels.
+**Rationale**: Subscription system prevents API quota abuse and allows controlled access. Admin identification by Telegram ID (not username) is more secure and reliable since usernames can be changed. Multiple admins support allows team management. Admin-only management ensures proper oversight. Time-based subscriptions provide flexibility for different access levels.
 
 ## External Dependencies
 
