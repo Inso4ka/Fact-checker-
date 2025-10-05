@@ -15,7 +15,8 @@ class Config(BaseModel):
     perplexity_api_key: str = Field(..., description="Perplexity AI API Key")
     database_url: str = Field(..., description="PostgreSQL connection URL")
     admin_chat_ids: list[int] = Field(..., description="List of admin Telegram IDs")
-    hash_salt: str = Field(..., description="Salt for hashing user IDs")
+    hash_salt: str = Field(..., description="Salt for hashing user IDs (УСТАРЕЛО - для миграции)")
+    hash_pepper: str = Field(..., description="Pepper for Argon2id hashing (глобальный секрет)")
     
     log_level: str = Field(default="INFO", description="Logging level")
     
@@ -35,6 +36,7 @@ class Config(BaseModel):
         db_url = os.getenv("DATABASE_URL")
         admin_ids = os.getenv("ADMIN_CHAT_ID")
         hash_salt = os.getenv("HASH_SALT")
+        hash_pepper = os.getenv("HASH_PEPPER")
         
         if not telegram_token:
             raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
@@ -46,6 +48,8 @@ class Config(BaseModel):
             raise ValueError("ADMIN_CHAT_ID не установлен. Укажите один или несколько Telegram ID через запятую")
         if not hash_salt:
             raise ValueError("HASH_SALT не установлен. Укажите секретную строку для хеширования ID")
+        if not hash_pepper:
+            raise ValueError("HASH_PEPPER не установлен. Укажите секретную строку минимум 32 символа для защиты хешей")
         
         # Парсим admin_ids через validator
         parsed_ids = cls.parse_admin_ids(admin_ids)
@@ -56,6 +60,7 @@ class Config(BaseModel):
             database_url=db_url,
             admin_chat_ids=parsed_ids,
             hash_salt=hash_salt,
+            hash_pepper=hash_pepper,
             log_level=os.getenv("LOG_LEVEL", "INFO")
         )
 
