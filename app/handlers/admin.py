@@ -8,6 +8,7 @@ from app.config import config
 from app.services.subscriptions import SubscriptionService
 from app.services.notifications import NotificationService
 from app.utils.text import split_message
+from app.utils.notification_cache import clear_user_notification
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,9 @@ async def cmd_grant(message: Message, bot: Bot):
         success, expires_at = await SubscriptionService.grant(user_id, None, duration)
         
         if success and expires_at:
+            # Очищаем кэш уведомлений - если подписка истечет, админ снова получит уведомление
+            clear_user_notification(user_id)
+            
             await message.answer(
                 f"✅ Подписка успешно выдана пользователю {user_id} на период {duration}"
             )

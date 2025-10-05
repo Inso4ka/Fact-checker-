@@ -10,6 +10,7 @@ from app.services.subscriptions import SubscriptionService
 from app.services.notifications import NotificationService
 from app.clients.perplexity import check_fact
 from app.utils.text import split_message
+from app.utils.notification_cache import is_user_notified, mark_user_notified
 from app.constants import MOSCOW_TZ
 from datetime import timezone
 
@@ -104,14 +105,19 @@ async def handle_message(message: Message, bot: Bot):
             parse_mode="HTML"
         )
         
-        # Уведомляем админов о новом пользователе
-        notification_service = NotificationService(bot)
-        await notification_service.notify_admins_new_user(
-            config.admin_chat_ids,
-            user_id,
-            message.from_user.username or "без username",
-            message.from_user.full_name or "Unknown"
-        )
+        # Уведомляем админов о новом пользователе ТОЛЬКО ОДИН РАЗ
+        # Защита от спама незарегистрированных пользователей
+        if not is_user_notified(user_id):
+            mark_user_notified(user_id)
+            
+            notification_service = NotificationService(bot)
+            await notification_service.notify_admins_new_user(
+                config.admin_chat_ids,
+                user_id,
+                message.from_user.username or "без username",
+                message.from_user.full_name or "Unknown"
+            )
+            logger.info(f"📢 Отправлено уведомление админам о новом пользователе {user_id}")
         
         return
     
