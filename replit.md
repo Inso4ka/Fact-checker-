@@ -13,6 +13,17 @@ The bot accepts text messages from users, processes them through Perplexity's AI
 
 Preferred communication style: Simple, everyday language.
 
+# Recent Changes (2025-10-05)
+
+## SHA256 ID Hashing Implementation
+- **Security Enhancement**: User IDs are now hashed using SHA256 + salt before storage
+- **Database**: Changed `user_id` from BIGINT to TEXT to store 64-character hashes
+- **Username Removed**: Deleted `username` field from database for maximum privacy
+- **Environment Variable**: Added `HASH_SALT` (required, minimum 32 characters)
+- **Privacy**: Real Telegram IDs never stored in database - only hashes visible
+- **Admin Commands**: Work transparently - `/grant 123456789 1M` auto-hashes the ID
+- **Migration**: `migrate_to_hashed.sql` recreates table with TEXT user_id (no username)
+
 # System Architecture
 
 ## Frontend Architecture
