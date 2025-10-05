@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import Optional
 from aiogram import Bot
 from app.services.subscriptions import SubscriptionService
 
@@ -91,7 +92,7 @@ class NotificationService:
         self, 
         admin_ids: list[int], 
         user_id: int, 
-        username: str
+        username: Optional[str]
     ) -> None:
         """Уведомляет админов об истечении подписки пользователя"""
         for admin_id in admin_ids:

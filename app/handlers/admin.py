@@ -48,7 +48,15 @@ async def cmd_grant(message: Message, bot: Bot):
         user_id = int(parts[1])
         duration = parts[2]
         
-        success, expires_at = await SubscriptionService.grant(user_id, None, duration)
+        # Получаем информацию о пользователе из Telegram API
+        username = None
+        try:
+            user_info = await bot.get_chat(user_id)
+            username = user_info.username
+        except Exception as e:
+            logger.warning(f"Не удалось получить username для {user_id}: {e}")
+        
+        success, expires_at = await SubscriptionService.grant(user_id, username, duration)
         
         if success and expires_at:
             # Очищаем кэш уведомлений - если подписка истечет, админ снова получит уведомление

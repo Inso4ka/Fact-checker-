@@ -37,7 +37,7 @@ async def subscription_cleanup_task(bot: Bot):
                         await notification_service.notify_admins_subscription_expired(
                             config.admin_chat_ids,
                             user_id,
-                            username or "нет username"
+                            username
                         )
                         logger.info(f"📢 Админы уведомлены об истечении подписки {user_id}")
                     
