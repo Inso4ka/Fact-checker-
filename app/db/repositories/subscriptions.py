@@ -33,7 +33,6 @@ class SubscriptionRepository:
     @staticmethod
     async def create_or_update(
         user_id: int, 
-        username: Optional[str], 
         expires_at: datetime
     ) -> None:
         """Создает или обновляет подписку"""
@@ -48,12 +47,12 @@ class SubscriptionRepository:
         async with pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO subscriptions (user_id, username, expires_at, created_at)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO subscriptions (user_id, expires_at, created_at)
+                VALUES ($1, $2, $3)
                 ON CONFLICT (user_id) 
-                DO UPDATE SET expires_at = $3, username = $2
+                DO UPDATE SET expires_at = $2
                 """,
-                hashed_id, username, naive_expires, now_naive
+                hashed_id, naive_expires, now_naive
             )
     
     @staticmethod
@@ -76,7 +75,7 @@ class SubscriptionRepository:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT user_id, username, expires_at, created_at
+                SELECT user_id, expires_at, created_at
                 FROM subscriptions
                 ORDER BY expires_at DESC
                 """
@@ -91,7 +90,7 @@ class SubscriptionRepository:
         
         async with pool.acquire() as conn:
             result = await conn.fetchrow(
-                "SELECT user_id, username, expires_at, created_at FROM subscriptions WHERE user_id = $1",
+                "SELECT user_id, expires_at, created_at FROM subscriptions WHERE user_id = $1",
                 hashed_id
             )
             return dict(result) if result else None  # type: ignore
@@ -105,7 +104,7 @@ class SubscriptionRepository:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT user_id, username, expires_at, created_at
+                SELECT user_id, expires_at, created_at
                 FROM subscriptions
                 WHERE expires_at < $1
                 """,
@@ -133,19 +132,3 @@ class SubscriptionRepository:
             count = int(result.split()[-1])
             return count
     
-    @staticmethod
-    async def update_username(user_id: int, username: Optional[str]) -> None:
-        """Обновляет username пользователя"""
-        pool = get_pool()
-        hashed_id = hash_user_id(user_id, config.hash_salt)
-        
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO subscriptions (user_id, username, expires_at, created_at)
-                VALUES ($1, $2, (SELECT expires_at FROM subscriptions WHERE user_id = $1), NOW())
-                ON CONFLICT (user_id) 
-                DO UPDATE SET username = $2
-                """,
-                hashed_id, username
-            )

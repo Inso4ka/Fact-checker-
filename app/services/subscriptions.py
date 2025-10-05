@@ -18,13 +18,13 @@ class SubscriptionService:
         return await SubscriptionRepository.check_active(user_id)
     
     @staticmethod
-    async def grant(user_id: int, username: Optional[str], duration: str) -> tuple[bool, Optional[datetime]]:
+    async def grant(user_id: int, duration: str) -> tuple[bool, Optional[datetime]]:
         """Выдает подписку пользователю"""
         if duration not in SUBSCRIPTION_DURATIONS:
             return False, None
         
         expires_at = datetime.now(timezone.utc) + SUBSCRIPTION_DURATIONS[duration]
-        await SubscriptionRepository.create_or_update(user_id, username, expires_at)
+        await SubscriptionRepository.create_or_update(user_id, expires_at)
         
         logger.info(f"✅ Выдана подписка: user_id={user_id}, duration={duration}, expires_at={expires_at}")
         
@@ -51,7 +51,6 @@ class SubscriptionService:
             
             result.append({
                 'user_id': sub['user_id'],
-                'username': sub['username'] or "N/A",
                 'expires_at_moscow': moscow_expires.strftime("%Y-%m-%d %H:%M"),
                 'created_at_moscow': moscow_created.strftime("%Y-%m-%d %H:%M")
             })
@@ -63,10 +62,6 @@ class SubscriptionService:
         """Получает подписку конкретного пользователя"""
         return await SubscriptionRepository.get_by_user_id(user_id)
     
-    @staticmethod
-    async def update_username(user_id: int, username: Optional[str]) -> None:
-        """Обновляет username пользователя"""
-        await SubscriptionRepository.update_username(user_id, username)
     
     @staticmethod
     def format_duration(duration: str) -> str:

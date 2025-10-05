@@ -23,23 +23,16 @@ async def subscription_cleanup_task(bot: Bot):
                 expired_subs = await SubscriptionRepository.get_expired()
                 
                 if expired_subs:
-                    # Уведомляем пользователей и админов об истечении подписки
+                    # Уведомляем админов об истечении подписки
                     for sub in expired_subs:
-                        user_id = sub['user_id']
-                        username = sub.get('username')
-                        
-                        # Уведомляем пользователя
-                        user_notified = await notification_service.notify_subscription_expired(user_id)
-                        if user_notified:
-                            logger.info(f"📬 Пользователь {user_id} уведомлен об истечении подписки")
+                        user_id_hash = sub['user_id']
                         
                         # Уведомляем админов
                         await notification_service.notify_admins_subscription_expired(
                             config.admin_chat_ids,
-                            user_id,
-                            username
+                            user_id_hash
                         )
-                        logger.info(f"📢 Админы уведомлены об истечении подписки {user_id}")
+                        logger.info(f"📢 Админы уведомлены об истечении подписки {user_id_hash[:16]}...")
                     
                     # Удаляем истекшие подписки
                     deleted_count = await SubscriptionRepository.delete_expired()

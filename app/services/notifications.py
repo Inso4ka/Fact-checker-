@@ -91,20 +91,16 @@ class NotificationService:
     async def notify_admins_subscription_expired(
         self, 
         admin_ids: list[int], 
-        user_id: int, 
-        username: Optional[str]
+        user_id_hash: str
     ) -> None:
         """Уведомляет админов об истечении подписки пользователя"""
         for admin_id in admin_ids:
             try:
-                username_display = f"@{username}" if username else "нет username"
                 await self.bot.send_message(
                     admin_id,
                     f"⏰ Подписка пользователя истекла:\n\n"
-                    f"ID: <code>{user_id}</code>\n"
-                    f"Username: {username_display}\n\n"
-                    f"Для продления используйте:\n"
-                    f"<code>/grant {user_id} 1M</code>",
+                    f"ID Hash: <code>{user_id_hash[:16]}...</code>\n\n"
+                    f"Запросите у пользователя его ID для продления.",
                     parse_mode="HTML"
                 )
             except Exception as e:

@@ -1,12 +1,11 @@
--- Migration: Change user_id from BIGINT to TEXT for hashed IDs
+-- Migration: Hashed IDs only (no username storage)
 
 -- Шаг 1: Удалить старую таблицу (ВНИМАНИЕ: потеряете данные!)
 DROP TABLE IF EXISTS subscriptions;
 
--- Шаг 2: Создать новую таблицу с TEXT для user_id
+-- Шаг 2: Создать новую таблицу с TEXT для user_id (без username)
 CREATE TABLE subscriptions (
     user_id TEXT PRIMARY KEY,
-    username VARCHAR(255),
     created_at TIMESTAMP NOT NULL,
     expires_at TIMESTAMP NOT NULL
 );
@@ -18,4 +17,4 @@ CREATE INDEX idx_expires_at ON subscriptions(expires_at);
 GRANT ALL PRIVILEGES ON TABLE subscriptions TO botuser;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO botuser;
 
--- Готово! Теперь user_id хранит SHA256 хеши вместо чистых ID
+-- Готово! Таблица хранит только хеши ID без username

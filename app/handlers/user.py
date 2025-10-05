@@ -127,9 +127,6 @@ async def handle_message(message: Message, bot: Bot):
     processing_msg = await message.answer("⏳ Анализирую ваш запрос...")
     
     try:
-        # Обновляем username пользователя
-        await SubscriptionService.update_username(user_id, message.from_user.username or None)
-        
         # Проверяем факт через Perplexity AI
         result = await check_fact(message.text)
         
