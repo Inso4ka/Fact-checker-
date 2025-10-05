@@ -142,7 +142,7 @@ The bot uses **PostgreSQL** for subscription management:
 **Subscription System**:
 - Only users with active subscriptions can use fact-checking functionality
 - New users receive their Telegram ID and are directed to send it to admin
-- Users without subscription see admin contacts (@itroyen, @JaffarUgerr) in all related messages
+- Users without subscription see admin contact (@kroove) in all related messages
 - Admin receives automatic notifications with user details (ID, username, name) when unauthorized users attempt to use the bot
 
 **Admin Control** (identified by Telegram IDs in `ADMIN_CHAT_ID`):
