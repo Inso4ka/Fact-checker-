@@ -36,16 +36,18 @@ class SubscriptionRepository:
         pool = get_pool()
         # Конвертируем в naive UTC datetime для PostgreSQL TIMESTAMP
         naive_expires = expires_at.replace(tzinfo=None) if expires_at.tzinfo else expires_at
+        # created_at тоже берем из Python, чтобы синхронизировать время
+        now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
         
         async with pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO subscriptions (user_id, username, expires_at)
-                VALUES ($1, $2, $3)
+                INSERT INTO subscriptions (user_id, username, expires_at, created_at)
+                VALUES ($1, $2, $3, $4)
                 ON CONFLICT (user_id) 
                 DO UPDATE SET expires_at = $3, username = $2
                 """,
-                user_id, username, naive_expires
+                user_id, username, naive_expires, now_naive
             )
     
     @staticmethod
