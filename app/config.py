@@ -2,6 +2,10 @@ import os
 import logging
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator
+from dotenv import load_dotenv
+
+# Загружаем переменные из .env файла (для локального запуска)
+load_dotenv()
 
 
 class Config(BaseModel):

@@ -2,7 +2,7 @@ modules = ["nodejs-20", "bash", "python-3.11", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["postgresql"]
+packages = ["libxcrypt", "postgresql"]
 
 [agent]
 expertMode = true
