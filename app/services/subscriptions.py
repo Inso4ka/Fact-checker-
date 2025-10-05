@@ -26,6 +26,8 @@ class SubscriptionService:
         expires_at = datetime.now(timezone.utc) + SUBSCRIPTION_DURATIONS[duration]
         await SubscriptionRepository.create_or_update(user_id, username, expires_at)
         
+        logger.info(f"✅ Выдана подписка: user_id={user_id}, duration={duration}, expires_at={expires_at}")
+        
         return True, expires_at
     
     @staticmethod

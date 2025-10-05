@@ -23,4 +23,4 @@ DURATION_DESCRIPTIONS = {
 
 # Лимиты
 MAX_MESSAGE_LENGTH = 4096  # Максимальная длина сообщения в Telegram
-CLEANUP_INTERVAL_SECONDS = 600  # Интервал очистки подписок (10 минут)
+CLEANUP_INTERVAL_SECONDS = 60  # Интервал очистки подписок (1 минута)
