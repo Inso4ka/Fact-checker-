@@ -15,6 +15,7 @@ class Config(BaseModel):
     perplexity_api_key: str = Field(..., description="Perplexity AI API Key")
     database_url: str = Field(..., description="PostgreSQL connection URL")
     admin_chat_ids: list[int] = Field(..., description="List of admin Telegram IDs")
+    hash_salt: str = Field(..., description="Salt for hashing user IDs")
     
     log_level: str = Field(default="INFO", description="Logging level")
     
@@ -33,6 +34,7 @@ class Config(BaseModel):
         perplexity_key = os.getenv("PERPLEXITY_API_KEY")
         db_url = os.getenv("DATABASE_URL")
         admin_ids = os.getenv("ADMIN_CHAT_ID")
+        hash_salt = os.getenv("HASH_SALT")
         
         if not telegram_token:
             raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
@@ -42,6 +44,8 @@ class Config(BaseModel):
             raise ValueError("DATABASE_URL не установлен")
         if not admin_ids:
             raise ValueError("ADMIN_CHAT_ID не установлен. Укажите один или несколько Telegram ID через запятую")
+        if not hash_salt:
+            raise ValueError("HASH_SALT не установлен. Укажите секретную строку для хеширования ID")
         
         # Парсим admin_ids через validator
         parsed_ids = cls.parse_admin_ids(admin_ids)
@@ -51,6 +55,7 @@ class Config(BaseModel):
             perplexity_api_key=perplexity_key,
             database_url=db_url,
             admin_chat_ids=parsed_ids,
+            hash_salt=hash_salt,
             log_level=os.getenv("LOG_LEVEL", "INFO")
         )
 

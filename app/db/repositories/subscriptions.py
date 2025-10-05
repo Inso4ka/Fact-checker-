@@ -3,6 +3,8 @@ from typing import Optional
 import asyncpg
 from app.db.pool import get_pool
 from app.models.subscription import SubscriptionRecord
+from app.utils.crypto import hash_user_id
+from app.config import config
 
 
 class SubscriptionRepository:
@@ -12,10 +14,12 @@ class SubscriptionRepository:
     async def check_active(user_id: int) -> bool:
         """Проверяет наличие активной подписки"""
         pool = get_pool()
+        hashed_id = hash_user_id(user_id, config.hash_salt)
+        
         async with pool.acquire() as conn:
             result = await conn.fetchrow(
                 "SELECT expires_at FROM subscriptions WHERE user_id = $1",
-                user_id
+                hashed_id
             )
             
             if not result:
@@ -34,6 +38,8 @@ class SubscriptionRepository:
     ) -> None:
         """Создает или обновляет подписку"""
         pool = get_pool()
+        hashed_id = hash_user_id(user_id, config.hash_salt)
+        
         # Конвертируем в naive UTC datetime для PostgreSQL TIMESTAMP
         naive_expires = expires_at.replace(tzinfo=None) if expires_at.tzinfo else expires_at
         # created_at тоже берем из Python, чтобы синхронизировать время
@@ -47,17 +53,19 @@ class SubscriptionRepository:
                 ON CONFLICT (user_id) 
                 DO UPDATE SET expires_at = $3, username = $2
                 """,
-                user_id, username, naive_expires, now_naive
+                hashed_id, username, naive_expires, now_naive
             )
     
     @staticmethod
     async def delete(user_id: int) -> bool:
         """Удаляет подписку пользователя"""
         pool = get_pool()
+        hashed_id = hash_user_id(user_id, config.hash_salt)
+        
         async with pool.acquire() as conn:
             result = await conn.execute(
                 "DELETE FROM subscriptions WHERE user_id = $1",
-                user_id
+                hashed_id
             )
             return result != "DELETE 0"
     
@@ -79,10 +87,12 @@ class SubscriptionRepository:
     async def get_by_user_id(user_id: int) -> Optional[SubscriptionRecord]:
         """Получает подписку по user_id"""
         pool = get_pool()
+        hashed_id = hash_user_id(user_id, config.hash_salt)
+        
         async with pool.acquire() as conn:
             result = await conn.fetchrow(
                 "SELECT user_id, username, expires_at, created_at FROM subscriptions WHERE user_id = $1",
-                user_id
+                hashed_id
             )
             return dict(result) if result else None  # type: ignore
     
@@ -127,6 +137,8 @@ class SubscriptionRepository:
     async def update_username(user_id: int, username: Optional[str]) -> None:
         """Обновляет username пользователя"""
         pool = get_pool()
+        hashed_id = hash_user_id(user_id, config.hash_salt)
+        
         async with pool.acquire() as conn:
             await conn.execute(
                 """
@@ -135,5 +147,5 @@ class SubscriptionRepository:
                 ON CONFLICT (user_id) 
                 DO UPDATE SET username = $2
                 """,
-                user_id, username
+                hashed_id, username
             )
