@@ -3,3 +3,4 @@ openai==1.58.1
 asyncpg==0.30.0
 pydantic==2.9.2
 python-dotenv
+argon2-cffi
