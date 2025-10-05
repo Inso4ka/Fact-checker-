@@ -38,8 +38,8 @@ async def cmd_start(message: Message):
     if is_admin(user_id):
         response += "👑 Вы администратор бота.\n\n"
         response += "Доступные команды:\n"
-        response += "• /grant <user_id> <duration> - Выдать подписку\n"
-        response += "• /revoke <user_id> - Отозвать подписку\n"
+        response += "• /grant &lt;user_id&gt; &lt;duration&gt; - Выдать подписку\n"
+        response += "• /revoke &lt;user_id&gt; - Отозвать подписку\n"
         response += "• /list - Список подписок\n"
         response += "• /mystatus - Проверить свою подписку"
     else:
