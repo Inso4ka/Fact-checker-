@@ -150,8 +150,10 @@ The bot uses **PostgreSQL** for subscription management:
 - `/mystatus` - Check own subscription status
 
 **Automatic Expiration**:
-- Background task runs every 10 minutes
-- Automatically notifies users when their subscription expires
+- Background task runs every 1 minute
+- Automatically notifies users and admins when subscription expires
+- Users receive notification with admin contacts for renewal
+- Admins receive notification with user details and quick /grant command
 - Removes expired subscriptions from database after notification
 - Users lose access immediately upon expiration
 
