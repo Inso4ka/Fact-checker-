@@ -1,8 +1,9 @@
 import hashlib
 import secrets
 from typing import Union, Tuple
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2 import Type
+from argon2.low_level import hash_secret_raw
+import base64
 
 
 def hash_user_id(user_id: Union[int, str], salt: str = "") -> str:
@@ -23,41 +24,51 @@ def hash_user_id(user_id: Union[int, str], salt: str = "") -> str:
 
 def hash_user_id_v2(user_id: Union[int, str], pepper: str, salt: str | None = None) -> Tuple[str, str]:
     """
-    Хеширует user_id с использованием Argon2id + индивидуальная соль + pepper
+    Хеширует user_id с использованием Argon2id (полностью детерминированно)
     
     Защита:
     - Argon2id: медленный алгоритм, защита от GPU brute-force
-    - Per-user salt: каждому пользователю своя случайная соль
+    - Детерминированная соль: вычисляется из user_id + pepper через HMAC
     - Pepper: глобальный секрет (не в БД)
+    - Для одного ID всегда один хеш (детерминированность)
     
     Args:
         user_id: Telegram user ID
         pepper: Глобальный секрет (HASH_PEPPER из env)
-        salt: Индивидуальная соль пользователя (если None - генерируется новая)
+        salt: НЕ ИСПОЛЬЗУЕТСЯ (для обратной совместимости API)
     
     Returns:
-        Tuple[хеш, соль]
+        Tuple[хеш (base64), соль (hex)]
     """
-    ph = PasswordHasher(
-        time_cost=3,       # Число итераций (баланс скорость/безопасность)
-        memory_cost=65536, # 64 MB памяти
-        parallelism=4,     # Параллельные потоки
-        hash_len=32,       # Длина хеша
-        salt_len=16        # Длина соли
-    )
+    # Генерируем детерминированную соль из user_id + pepper
+    # Используем HMAC-SHA256 для создания уникальной, но воспроизводимой соли
+    import hmac
+    salt_data = f"{user_id}".encode('utf-8')
+    pepper_key = pepper.encode('utf-8')
+    salt_hmac = hmac.new(pepper_key, salt_data, hashlib.sha256).digest()
+    salt_bytes = salt_hmac[:16]  # Первые 16 байт
     
-    # Генерируем новую соль если не передана
-    if salt is None:
-        salt = secrets.token_hex(16)
+    # Конвертируем в hex для возврата
+    salt_hex = salt_bytes.hex()
     
     # Комбинируем user_id + pepper для хеширования
-    data_to_hash = f"{user_id}{pepper}"
+    data_to_hash = f"{user_id}{pepper}".encode('utf-8')
     
-    # Argon2 внутренне использует соль, но мы храним её явно
-    # Это позволяет нам контролировать соль для каждого пользователя
-    hash_result = ph.hash(data_to_hash + salt)
+    # Используем low-level API с детерминированной солью
+    hash_bytes = hash_secret_raw(
+        secret=data_to_hash,
+        salt=salt_bytes,
+        time_cost=3,        # Число итераций
+        memory_cost=65536,  # 64 MB памяти
+        parallelism=4,      # Параллельные потоки
+        hash_len=32,        # 32 байта хеш
+        type=Type.ID        # Argon2id
+    )
     
-    return hash_result, salt
+    # Конвертируем в base64 для хранения
+    hash_b64 = base64.b64encode(hash_bytes).decode('utf-8')
+    
+    return hash_b64, salt_hex
 
 
 def verify_user_id_v2(user_id: Union[int, str], pepper: str, salt: str, stored_hash: str) -> bool:
@@ -67,24 +78,14 @@ def verify_user_id_v2(user_id: Union[int, str], pepper: str, salt: str, stored_h
     Args:
         user_id: Telegram user ID для проверки
         pepper: Глобальный секрет (HASH_PEPPER)
-        salt: Индивидуальная соль из БД
-        stored_hash: Сохранённый хеш из БД
+        salt: НЕ ИСПОЛЬЗУЕТСЯ (соль детерминированная)
+        stored_hash: Сохранённый хеш из БД (base64)
     
     Returns:
         True если ID соответствует хешу
     """
-    ph = PasswordHasher(
-        time_cost=3,
-        memory_cost=65536,
-        parallelism=4,
-        hash_len=32,
-        salt_len=16
-    )
+    # Пересчитываем хеш (соль детерминированная, вычисляется внутри)
+    recalculated_hash, _ = hash_user_id_v2(user_id, pepper)
     
-    data_to_verify = f"{user_id}{pepper}{salt}"
-    
-    try:
-        ph.verify(stored_hash, data_to_verify)
-        return True
-    except VerifyMismatchError:
-        return False
+    # Сравниваем хеши
+    return recalculated_hash == stored_hash
