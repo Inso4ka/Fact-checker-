@@ -20,17 +20,45 @@ Preferred communication style: Simple, everyday language.
 
 ## Backend Architecture
 
-### Simple Python Architecture
-The application uses a **single-runtime Python architecture**:
+### Modular Python Architecture
+The application uses a **modular Python package architecture** with clean separation of concerns:
 
-**Python Bot (`bot.py`)**
-- Clean, simple implementation using aiogram 3.15.0
-- Long polling for reliable message delivery
-- Direct async integration with Perplexity API via OpenAI SDK
-- PostgreSQL database for subscription management
-- Admin-controlled subscription system
+**Project Structure**:
+```
+app/
+├── config.py              # Configuration with Pydantic validation
+├── constants.py           # Shared constants (timezones, durations)
+├── models/
+│   └── subscription.py    # TypedDict models for type safety
+├── db/
+│   ├── pool.py           # Database connection pool management
+│   └── repositories/
+│       └── subscriptions.py  # Data access layer (CRUD operations)
+├── clients/
+│   └── perplexity.py     # Perplexity AI client wrapper
+├── services/
+│   ├── subscriptions.py  # Business logic for subscriptions
+│   └── notifications.py  # User notification service
+├── handlers/
+│   ├── admin.py          # Admin command handlers (Router-based)
+│   └── user.py           # User command handlers (Router-based)
+├── background/
+│   └── cleanup.py        # Background task for expired subscriptions
+├── utils/
+│   └── text.py          # Text utilities (message chunking)
+└── main.py              # Application entry point
+bot.py                    # Compatibility wrapper for workflow
+```
 
-**Design Decision**: Python chosen for simplicity, maintainability, and ease of deployment. The async architecture with aiogram provides excellent performance without the complexity of multi-service orchestration.
+**Architecture Benefits**:
+- **Separation of Concerns**: Each module has single responsibility
+- **Type Safety**: Pydantic config validation, TypedDict models, comprehensive type hints
+- **Testability**: Modular design enables easy unit testing
+- **Maintainability**: Clear structure makes code easy to navigate and modify
+- **Scalability**: Easy to add new features without touching existing code
+- **Async Best Practices**: Proper resource management, graceful shutdown handling
+
+**Design Decision**: Refactored from monolithic 464-line bot.py to modular architecture for better maintainability, type safety, and scalability. Uses dependency injection pattern with routers for handlers. Proper async lifecycle management with graceful shutdown support.
 
 ### AI Agent System
 - **Model**: Perplexity `sonar-pro` (web-search capable)
