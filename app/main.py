@@ -29,8 +29,8 @@ async def main():
     dp.include_router(admin_router)
     dp.include_router(user_router)
     
-    # Запуск фоновой задачи очистки подписок
-    cleanup_task = asyncio.create_task(subscription_cleanup_task())
+    # Запуск фоновой задачи очистки подписок с передачей бота для уведомлений
+    cleanup_task = asyncio.create_task(subscription_cleanup_task(bot))
     
     logger.info(f"✅ Бот инициализирован")
     logger.info(f"👤 Admin IDs: {', '.join(map(str, config.admin_chat_ids))}")

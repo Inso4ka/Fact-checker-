@@ -70,3 +70,18 @@ class NotificationService:
                 )
             except Exception as e:
                 logger.error(f"Не удалось уведомить админа {admin_id}: {e}")
+    
+    async def notify_subscription_expired(self, user_id: int) -> bool:
+        """Уведомляет пользователя об истечении подписки"""
+        try:
+            await self.bot.send_message(
+                user_id,
+                f"⏰ Ваша подписка на бота истекла.\n\n"
+                f"🆔 Ваш ID: <code>{user_id}</code>\n\n"
+                f"Для продления доступа отправьте свой ID администратору.",
+                parse_mode="HTML"
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Не удалось уведомить пользователя {user_id} об истечении: {e}")
+            return False

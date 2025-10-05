@@ -1,23 +1,36 @@
 import asyncio
 import logging
+from aiogram import Bot
 from app.db.repositories.subscriptions import SubscriptionRepository
+from app.services.notifications import NotificationService
 from app.constants import CLEANUP_INTERVAL_SECONDS
 
 logger = logging.getLogger(__name__)
 
 
-async def subscription_cleanup_task():
+async def subscription_cleanup_task(bot: Bot):
     """Фоновая задача для автоматической очистки истекших подписок"""
     logger.info("🔄 Запущена фоновая задача очистки подписок")
+    notification_service = NotificationService(bot)
     
     try:
         while True:
             try:
                 await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
                 
-                deleted_count = await SubscriptionRepository.delete_expired()
+                # Получаем список истекших подписок перед удалением
+                expired_subs = await SubscriptionRepository.get_expired()
                 
-                if deleted_count > 0:
+                if expired_subs:
+                    # Уведомляем пользователей об истечении подписки
+                    for sub in expired_subs:
+                        user_id = sub['user_id']
+                        success = await notification_service.notify_subscription_expired(user_id)
+                        if success:
+                            logger.info(f"📬 Пользователь {user_id} уведомлен об истечении подписки")
+                    
+                    # Удаляем истекшие подписки
+                    deleted_count = await SubscriptionRepository.delete_expired()
                     logger.info(f"🗑️ Удалено истекших подписок: {deleted_count}")
             
             except asyncio.CancelledError:

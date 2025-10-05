@@ -85,6 +85,23 @@ class SubscriptionRepository:
             return dict(result) if result else None  # type: ignore
     
     @staticmethod
+    async def get_expired() -> list[SubscriptionRecord]:
+        """Получает список истекших подписок перед удалением"""
+        pool = get_pool()
+        now_utc_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+        
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT user_id, username, expires_at, created_at
+                FROM subscriptions
+                WHERE expires_at < $1
+                """,
+                now_utc_naive
+            )
+            return [dict(row) for row in rows]  # type: ignore
+    
+    @staticmethod
     async def delete_expired() -> int:
         """Удаляет истекшие подписки, возвращает количество удаленных"""
         pool = get_pool()

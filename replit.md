@@ -150,7 +150,8 @@ The bot uses **PostgreSQL** for subscription management:
 
 **Automatic Expiration**:
 - Background task runs every 10 minutes
-- Automatically removes expired subscriptions from database
+- Automatically notifies users when their subscription expires
+- Removes expired subscriptions from database after notification
 - Users lose access immediately upon expiration
 
 **Rationale**: Subscription system prevents API quota abuse and allows controlled access. Admin identification by Telegram ID (not username) is more secure and reliable since usernames can be changed. Multiple admins support allows team management. Admin-only management ensures proper oversight. Time-based subscriptions provide flexibility for different access levels.
