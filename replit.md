@@ -113,7 +113,7 @@ The bot uses **PostgreSQL** for subscription management:
 
 **Operations**:
 - Subscription checks on every message
-- Automatic cleanup of expired subscriptions every 10 minutes
+- Automatic cleanup of expired subscriptions every 1 minute
 - Admin commands for subscription management
 
 **Rationale**: Subscription system requires persistent storage to track user access. PostgreSQL chosen for reliability and Replit's built-in support. Background cleanup task ensures database stays clean without manual intervention.
@@ -131,6 +131,7 @@ The bot uses **PostgreSQL** for subscription management:
 **Subscription System**:
 - Only users with active subscriptions can use fact-checking functionality
 - New users receive their Telegram ID and are directed to send it to admin
+- Users without subscription see admin contacts (@itroyen, @JaffarUgerr) in all related messages
 - Admin receives automatic notifications with user details (ID, username, name) when unauthorized users attempt to use the bot
 
 **Admin Control** (identified by Telegram IDs in `ADMIN_CHAT_ID`):
