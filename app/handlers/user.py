@@ -37,6 +37,7 @@ async def cmd_start(message: Message):
     
     if is_admin(user_id):
         response += "👑 Вы администратор бота.\n\n"
+        response += "У вас безграничный доступ ко всем функциям.\n\n"
         response += "Доступные команды:\n"
         response += "• /grant &lt;user_id&gt; &lt;duration&gt; - Выдать подписку\n"
         response += "• /revoke &lt;user_id&gt; - Отозвать подписку\n"
@@ -97,32 +98,35 @@ async def handle_message(message: Message, bot: Bot):
         return
     
     user_id = message.from_user.id
-    has_subscription = await SubscriptionService.check_active(user_id)
     
-    if not has_subscription:
-        await message.answer(
-            f"❌ У вас нет активной подписки.\n\n"
-            f"🆔 Ваш ID: <code>{user_id}</code>\n\n"
-            f"Отправьте свой ID администратору для получения доступа.\n\n"
-            f"👤 Администратор: @kroove",
-            parse_mode="HTML"
-        )
+    # Админ имеет безграничный доступ без проверки подписки
+    if not is_admin(user_id):
+        has_subscription = await SubscriptionService.check_active(user_id)
         
-        # Уведомляем админов о новом пользователе ТОЛЬКО ОДИН РАЗ
-        # Защита от спама незарегистрированных пользователей
-        if not is_user_notified(user_id):
-            mark_user_notified(user_id)
-            
-            notification_service = NotificationService(bot)
-            await notification_service.notify_admins_new_user(
-                config.admin_chat_ids,
-                user_id,
-                message.from_user.username or "без username",
-                message.from_user.full_name or "Unknown"
+        if not has_subscription:
+            await message.answer(
+                f"❌ У вас нет активной подписки.\n\n"
+                f"🆔 Ваш ID: <code>{user_id}</code>\n\n"
+                f"Отправьте свой ID администратору для получения доступа.\n\n"
+                f"👤 Администратор: @kroove",
+                parse_mode="HTML"
             )
-            logger.info(f"📢 Отправлено уведомление админам о новом пользователе {user_id}")
-        
-        return
+            
+            # Уведомляем админов о новом пользователе ТОЛЬКО ОДИН РАЗ
+            # Защита от спама незарегистрированных пользователей
+            if not is_user_notified(user_id):
+                mark_user_notified(user_id)
+                
+                notification_service = NotificationService(bot)
+                await notification_service.notify_admins_new_user(
+                    config.admin_chat_ids,
+                    user_id,
+                    message.from_user.username or "без username",
+                    message.from_user.full_name or "Unknown"
+                )
+                logger.info(f"📢 Отправлено уведомление админам о новом пользователе {user_id}")
+            
+            return
     
     processing_msg = await message.answer("⏳ Анализирую ваш запрос...")
     
