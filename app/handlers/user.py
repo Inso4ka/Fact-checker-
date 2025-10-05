@@ -66,7 +66,9 @@ async def cmd_mystatus(message: Message):
         sub = await SubscriptionService.get_user_subscription(message.from_user.id)
         
         if sub:
-            moscow_time = sub['expires_at'].replace(tzinfo=timezone.utc).astimezone(MOSCOW_TZ)
+            # БД возвращает naive datetime (UTC), конвертируем в московское время
+            expires_utc = sub['expires_at'].replace(tzinfo=timezone.utc)
+            moscow_time = expires_utc.astimezone(MOSCOW_TZ)
             expires = moscow_time.strftime("%Y-%m-%d %H:%M")
             await message.answer(
                 f"✅ У вас есть активная подписка\n"

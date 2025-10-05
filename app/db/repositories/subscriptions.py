@@ -21,8 +21,10 @@ class SubscriptionRepository:
             if not result:
                 return False
             
+            # БД возвращает naive datetime (UTC), сравниваем с naive UTC
             expires_at = result['expires_at']
-            return datetime.now(timezone.utc) < expires_at.replace(tzinfo=timezone.utc)
+            now_utc_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+            return now_utc_naive < expires_at
     
     @staticmethod
     async def create_or_update(
@@ -32,6 +34,9 @@ class SubscriptionRepository:
     ) -> None:
         """Создает или обновляет подписку"""
         pool = get_pool()
+        # Конвертируем в naive UTC datetime для PostgreSQL TIMESTAMP
+        naive_expires = expires_at.replace(tzinfo=None) if expires_at.tzinfo else expires_at
+        
         async with pool.acquire() as conn:
             await conn.execute(
                 """
@@ -40,7 +45,7 @@ class SubscriptionRepository:
                 ON CONFLICT (user_id) 
                 DO UPDATE SET expires_at = $3, username = $2
                 """,
-                user_id, username, expires_at
+                user_id, username, naive_expires
             )
     
     @staticmethod
@@ -83,10 +88,13 @@ class SubscriptionRepository:
     async def delete_expired() -> int:
         """Удаляет истекшие подписки, возвращает количество удаленных"""
         pool = get_pool()
+        # Используем naive UTC datetime для PostgreSQL
+        now_utc_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+        
         async with pool.acquire() as conn:
             result = await conn.execute(
                 "DELETE FROM subscriptions WHERE expires_at < $1",
-                datetime.now(timezone.utc)
+                now_utc_naive
             )
             
             if result == "DELETE 0":

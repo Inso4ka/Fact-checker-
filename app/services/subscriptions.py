@@ -40,8 +40,12 @@ class SubscriptionService:
         result = []
         
         for sub in subs:
-            moscow_expires = sub['expires_at'].replace(tzinfo=timezone.utc).astimezone(MOSCOW_TZ)
-            moscow_created = sub['created_at'].replace(tzinfo=timezone.utc).astimezone(MOSCOW_TZ)
+            # БД возвращает naive datetime (UTC), добавляем timezone и конвертируем в МСК
+            expires_utc = sub['expires_at'].replace(tzinfo=timezone.utc)
+            created_utc = sub['created_at'].replace(tzinfo=timezone.utc)
+            
+            moscow_expires = expires_utc.astimezone(MOSCOW_TZ)
+            moscow_created = created_utc.astimezone(MOSCOW_TZ)
             
             result.append({
                 'user_id': sub['user_id'],
@@ -70,5 +74,11 @@ class SubscriptionService:
     @staticmethod
     def format_datetime_moscow(dt: datetime) -> str:
         """Форматирует datetime в московское время"""
-        moscow_time = dt.replace(tzinfo=timezone.utc).astimezone(MOSCOW_TZ)
+        # Если datetime с timezone - конвертируем, если без - считаем UTC
+        if dt.tzinfo is None:
+            dt_utc = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt_utc = dt
+        
+        moscow_time = dt_utc.astimezone(MOSCOW_TZ)
         return moscow_time.strftime("%Y-%m-%d %H:%M")
