@@ -109,10 +109,10 @@ async def cmd_revoke(message: Message, bot: Bot):
         await message.answer(f"❌ Ошибка: {str(e)}")
 
 
-@admin_router.message(Command("list"))
-async def cmd_list(message: Message):
-    """Команда просмотра всех подписок (только для админов)"""
-    if not message.from_user:
+@admin_router.message(Command("hash"))
+async def cmd_hash(message: Message):
+    """Команда получения хеша по user_id (только для админов)"""
+    if not message.from_user or not message.text:
         return
     
     if not is_admin(message.from_user.id):
@@ -120,24 +120,31 @@ async def cmd_list(message: Message):
         return
     
     try:
-        subs = await SubscriptionService.get_all_formatted()
-        
-        if not subs:
-            await message.answer("📋 Нет активных подписок")
+        parts = message.text.split()
+        if len(parts) != 2:
+            await message.answer(
+                "📝 Использование: /hash &lt;user_id&gt;\n\n"
+                "Пример: /hash 123456789",
+                parse_mode="HTML"
+            )
             return
         
-        text = "📋 <b>Активные подписки:</b>\n\n"
+        user_id = int(parts[1])
         
-        for sub in subs:
-            text += f"👤 ID Hash: <code>{sub['user_id'][:16]}...</code>\n"
-            text += f"   Создана: {sub['created_at_moscow']}\n"
-            text += f"   Истекает: {sub['expires_at_moscow']}\n\n"
+        # Получаем подписку пользователя (там будет хеш)
+        sub = await SubscriptionService.get_user_subscription(user_id)
         
-        # Разбиваем на части если длинное
-        chunks = split_message(text)
-        for chunk in chunks:
-            await message.answer(chunk, parse_mode="HTML")
+        if sub:
+            await message.answer(
+                f"🔐 Хеш для ID <code>{user_id}</code>:\n\n"
+                f"<code>{sub['user_id']}</code>",
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer(f"❌ Подписка для пользователя {user_id} не найдена")
     
+    except ValueError:
+        await message.answer("❌ Неверный формат user_id")
     except Exception as e:
-        logger.error(f"Ошибка в /list: {e}")
+        logger.error(f"Ошибка в /hash: {e}")
         await message.answer(f"❌ Ошибка: {str(e)}")
