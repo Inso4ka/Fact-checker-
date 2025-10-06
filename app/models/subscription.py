@@ -4,8 +4,7 @@ from typing import TypedDict
 
 class SubscriptionRecord(TypedDict):
     """Запись подписки из базы данных"""
-    user_id: str  # Argon2id хеш
-    salt: str | None  # Индивидуальная соль пользователя (None для старых SHA256 хешей)
+    user_id: str  # SHA256 хеш
     expires_at: datetime
     created_at: datetime
 
