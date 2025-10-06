@@ -41,6 +41,7 @@ async def cmd_start(message: Message):
         response += "Доступные команды:\n"
         response += "• /grant &lt;user_id&gt; &lt;duration&gt; - Выдать подписку\n"
         response += "• /revoke &lt;user_id&gt; - Отозвать подписку\n"
+        response += "• /revokeall - Отозвать ВСЕ подписки\n"
         response += "• /hash &lt;user_id&gt; - Получить хеш по ID\n"
         response += "• /mystatus - Проверить свою подписку"
     else:

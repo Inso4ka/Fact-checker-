@@ -132,3 +132,18 @@ class SubscriptionRepository:
             count = int(result.split()[-1])
             return count
     
+    @staticmethod
+    async def delete_all() -> int:
+        """Удаляет ВСЕ подписки, возвращает количество удаленных"""
+        pool = get_pool()
+        
+        async with pool.acquire() as conn:
+            result = await conn.execute("DELETE FROM subscriptions")
+            
+            if result == "DELETE 0":
+                return 0
+            
+            # Извлекаем число из "DELETE N"
+            count = int(result.split()[-1])
+            return count
+    

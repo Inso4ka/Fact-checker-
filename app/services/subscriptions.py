@@ -36,6 +36,13 @@ class SubscriptionService:
         return await SubscriptionRepository.delete(user_id)
     
     @staticmethod
+    async def revoke_all() -> int:
+        """Отзывает ВСЕ подписки, возвращает количество удаленных"""
+        count = await SubscriptionRepository.delete_all()
+        logger.info(f"🗑️ Отозвано всех подписок: {count}")
+        return count
+    
+    @staticmethod
     async def get_all_formatted() -> list[SubscriptionInfo]:
         """Получает все подписки с форматированием для отображения"""
         subs = await SubscriptionRepository.get_all()

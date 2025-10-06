@@ -38,6 +38,7 @@ async def cmd_grant(message: Message, bot: Bot):
                 "Доступные периоды:\n"
                 "• 1m - 1 минута\n"
                 "• 1d - 1 день\n"
+                "• 1W - 1 неделя\n"
                 "• 1M - 1 месяц\n"
                 "• 6M - 6 месяцев\n"
                 "• 1y - 1 год\n\n"
@@ -147,4 +148,30 @@ async def cmd_hash(message: Message):
         await message.answer("❌ Неверный формат user_id")
     except Exception as e:
         logger.error(f"Ошибка в /hash: {e}")
+        await message.answer(f"❌ Ошибка: {str(e)}")
+
+
+@admin_router.message(Command("revokeall"))
+async def cmd_revokeall(message: Message):
+    """Команда отзыва ВСЕХ подписок (только для админов)"""
+    if not message.from_user:
+        return
+    
+    if not is_admin(message.from_user.id):
+        await message.answer("❌ У вас нет прав для выполнения этой команды.")
+        return
+    
+    try:
+        count = await SubscriptionService.revoke_all()
+        
+        if count > 0:
+            await message.answer(
+                f"🗑️ Отозвано всех подписок: {count}\n\n"
+                f"Все пользователи потеряли доступ к боту."
+            )
+        else:
+            await message.answer("📋 Нет активных подписок для отзыва")
+    
+    except Exception as e:
+        logger.error(f"Ошибка в /revokeall: {e}")
         await message.answer(f"❌ Ошибка: {str(e)}")
