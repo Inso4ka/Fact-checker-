@@ -135,18 +135,31 @@ async def handle_message(message: Message, bot: Bot):
         # Проверяем факт через Perplexity AI
         result = await check_fact(message.text)
         
-        await processing_msg.delete()
+        # Безопасно удаляем сообщение о загрузке
+        try:
+            await processing_msg.delete()
+        except Exception as del_error:
+            logger.warning(f"Не удалось удалить сообщение о загрузке: {del_error}")
         
         # Отправляем результат (с разбивкой на части если длинный)
         chunks = split_message(result)
         for i, chunk in enumerate(chunks):
-            await message.answer(chunk, parse_mode="HTML")
+            try:
+                await message.answer(chunk, parse_mode="HTML")
+            except Exception as send_error:
+                # Если HTML парсинг не сработал, отправляем без парсинга
+                logger.error(f"Ошибка отправки с HTML: {send_error}")
+                await message.answer(chunk)
+            
             if i < len(chunks) - 1:
                 await asyncio.sleep(0.1)
     
     except Exception as e:
         logger.error(f"Ошибка обработки сообщения: {e}")
-        await processing_msg.delete()
+        try:
+            await processing_msg.delete()
+        except:
+            pass
         await message.answer(
             f"❌ Произошла ошибка при обработке вашего запроса: {str(e)}"
         )
