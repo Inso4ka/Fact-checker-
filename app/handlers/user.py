@@ -11,6 +11,7 @@ from app.services.notifications import NotificationService
 from app.clients.perplexity import check_fact
 from app.utils.text import split_message
 from app.utils.notification_cache import is_user_notified, mark_user_notified
+from app.utils.message_splitter import split_conclusion_and_sources
 from app.constants import MOSCOW_TZ
 from datetime import timezone
 
@@ -141,18 +142,34 @@ async def handle_message(message: Message, bot: Bot):
         except Exception as del_error:
             logger.warning(f"Не удалось удалить сообщение о загрузке: {del_error}")
         
-        # Отправляем результат (с разбивкой на части если длинный)
-        chunks = split_message(result)
-        for i, chunk in enumerate(chunks):
+        # Разделяем на вывод и источники
+        conclusion, sources = split_conclusion_and_sources(result)
+        
+        # Отправляем вывод (первое сообщение)
+        conclusion_chunks = split_message(conclusion)
+        for i, chunk in enumerate(conclusion_chunks):
             try:
                 await message.answer(chunk, parse_mode="HTML")
             except Exception as send_error:
-                # Если HTML парсинг не сработал, отправляем без парсинга
-                logger.error(f"Ошибка отправки с HTML: {send_error}")
+                logger.error(f"Ошибка отправки вывода с HTML: {send_error}")
                 await message.answer(chunk)
             
-            if i < len(chunks) - 1:
+            if i < len(conclusion_chunks) - 1:
                 await asyncio.sleep(0.1)
+        
+        # Отправляем источники (второе сообщение), если есть
+        if sources:
+            await asyncio.sleep(0.3)  # Небольшая пауза между сообщениями
+            sources_chunks = split_message(sources)
+            for i, chunk in enumerate(sources_chunks):
+                try:
+                    await message.answer(chunk, parse_mode="HTML")
+                except Exception as send_error:
+                    logger.error(f"Ошибка отправки источников с HTML: {send_error}")
+                    await message.answer(chunk)
+                
+                if i < len(sources_chunks) - 1:
+                    await asyncio.sleep(0.1)
     
     except Exception as e:
         logger.error(f"Ошибка обработки сообщения: {e}")
