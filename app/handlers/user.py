@@ -98,7 +98,8 @@ async def process_payment(callback: CallbackQuery):
         invoice_id = await payment_repo.create_payment(
             user_id=hashed_id,
             amount=Decimal(str(price)),
-            duration=duration
+            duration=duration,
+            telegram_user_id=user_id
         )
         
         # Генерируем ссылку для оплаты

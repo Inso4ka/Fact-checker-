@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher
+from aiohttp import web
 
 from app.config import config, logger
 from app.db.pool import init_pool, close_pool
@@ -8,6 +9,7 @@ from app.clients import perplexity
 from app.handlers.admin import admin_router
 from app.handlers.user import user_router
 from app.background.cleanup import subscription_cleanup_task
+from app.webhook.robokassa_webhook import create_webhook_app
 
 
 async def main():
@@ -32,8 +34,19 @@ async def main():
     # Запуск фоновой задачи очистки подписок с передачей бота для уведомлений
     cleanup_task = asyncio.create_task(subscription_cleanup_task(bot))
     
+    # Создание и запуск webhook сервера для Robokassa
+    webhook_app = create_webhook_app(bot)
+    runner = web.AppRunner(webhook_app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 5000)
+    await site.start()
+    
     logger.info(f"✅ Бот инициализирован")
     logger.info(f"👤 Admin IDs: {', '.join(map(str, config.admin_chat_ids))}")
+    logger.info(f"🌐 Webhook сервер запущен на http://0.0.0.0:5000")
+    logger.info(f"   - ResultURL: http://your-domain.com/robokassa/result")
+    logger.info(f"   - SuccessURL: http://your-domain.com/robokassa/success")
+    logger.info(f"   - FailURL: http://your-domain.com/robokassa/fail")
     
     try:
         # Запуск long polling
@@ -45,6 +58,7 @@ async def main():
             await cleanup_task
         except asyncio.CancelledError:
             pass
+        await runner.cleanup()
         await close_pool()
         await bot.session.close()
         logger.info("👋 Бот остановлен")

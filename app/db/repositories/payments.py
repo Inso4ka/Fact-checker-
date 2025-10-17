@@ -15,7 +15,8 @@ class PaymentRepository:
         self,
         user_id: str,
         amount: Decimal,
-        duration: str
+        duration: str,
+        telegram_user_id: int = None
     ) -> int:
         """
         Создать новый платеж
@@ -24,6 +25,7 @@ class PaymentRepository:
             user_id: Хеш ID пользователя
             amount: Сумма платежа
             duration: Длительность подписки (1m, 6m, 1y)
+            telegram_user_id: Telegram ID пользователя (для уведомлений)
         
         Returns:
             invoice_id: ID созданного платежа
@@ -31,11 +33,11 @@ class PaymentRepository:
         async with self.pool.acquire() as conn:
             invoice_id = await conn.fetchval(
                 """
-                INSERT INTO payments (user_id, amount, duration, status)
-                VALUES ($1, $2, $3, 'pending')
+                INSERT INTO payments (user_id, amount, duration, status, telegram_user_id)
+                VALUES ($1, $2, $3, 'pending', $4)
                 RETURNING invoice_id
                 """,
-                user_id, amount, duration
+                user_id, amount, duration, telegram_user_id
             )
             return invoice_id
     
