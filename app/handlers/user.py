@@ -2,15 +2,20 @@ import logging
 import asyncio
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram import Bot
+from decimal import Decimal
 
 from app.config import config
 from app.services.subscriptions import SubscriptionService
 from app.services.notifications import NotificationService
 from app.clients.perplexity import check_fact
+from app.clients.robokassa_client import robokassa_client
+from app.db.repositories.payments import PaymentRepository
+from app.db.pool import get_pool
 from app.utils.text import split_message
 from app.utils.notification_cache import is_user_notified, mark_user_notified
+from app.utils.crypto import hash_user_id
 from app.constants import MOSCOW_TZ
 from datetime import timezone
 
@@ -44,20 +49,92 @@ async def cmd_start(message: Message):
         response += "• /revokeall - Отозвать ВСЕ подписки\n"
         response += "• /hash &lt;user_id&gt; - Получить хеш по ID\n"
         response += "• /mystatus - Проверить свою подписку"
+        await message.answer(response, parse_mode="HTML")
     else:
         has_subscription = await SubscriptionService.check_active(user_id)
         
         if has_subscription:
             response += "✅ У вас есть активная подписка.\n"
             response += "Просто отправьте мне любое утверждение, и я проверю его достоверность."
+            await message.answer(response, parse_mode="HTML")
         else:
-            response += "❌ У вас нет активной подписки.\n"
-            response += f"Для получения доступа отправьте свой ID администратору.\n\n"
-            response += "👤 Администратор: @kroove\n\n"
-            response += "Команды:\n"
-            response += "• /mystatus - Проверить статус подписки"
+            response += "❌ У вас нет активной подписки.\n\n"
+            response += "💳 <b>Выберите тариф для оплаты:</b>"
+            
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📅 Месяц - 1000₽", callback_data="pay:1m:1000")],
+                [InlineKeyboardButton(text="📅 Полгода - 3600₽", callback_data="pay:6m:3600")],
+                [InlineKeyboardButton(text="📅 Год - 6000₽", callback_data="pay:1y:6000")]
+            ])
+            
+            await message.answer(response, reply_markup=keyboard, parse_mode="HTML")
+
+
+@user_router.callback_query(lambda c: c.data and c.data.startswith("pay:"))
+async def process_payment(callback: CallbackQuery):
+    """Обработчик выбора тарифа и генерации платежной ссылки"""
+    if not callback.data or not callback.from_user:
+        return
     
-    await message.answer(response, parse_mode="HTML")
+    await callback.answer()
+    
+    # Парсим callback data: pay:1m:1000
+    parts = callback.data.split(":")
+    if len(parts) != 3:
+        await callback.message.answer("❌ Ошибка: неверный формат данных")
+        return
+    
+    duration = parts[1]  # 1m, 6m, 1y
+    price = int(parts[2])  # 1000, 3600, 6000
+    
+    user_id = callback.from_user.id
+    hashed_id = hash_user_id(user_id, config.hash_salt)
+    
+    try:
+        # Создаем платеж в БД
+        pool = get_pool()
+        payment_repo = PaymentRepository(pool)
+        
+        invoice_id = await payment_repo.create_payment(
+            user_id=hashed_id,
+            amount=Decimal(str(price)),
+            duration=duration
+        )
+        
+        # Генерируем ссылку для оплаты
+        payment_url = robokassa_client.generate_payment_link(
+            invoice_id=invoice_id,
+            amount=Decimal(str(price)),
+            description=f"Подписка на {duration}"
+        )
+        
+        # Красивое отображение тарифа
+        duration_text = {
+            "1m": "1 месяц",
+            "6m": "6 месяцев",
+            "1y": "1 год"
+        }.get(duration, duration)
+        
+        # Отправляем ссылку пользователю
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Оплатить", url=payment_url)]
+        ])
+        
+        await callback.message.answer(
+            f"💰 <b>Счёт на оплату создан</b>\n\n"
+            f"📋 Номер счёта: #{invoice_id}\n"
+            f"📅 Тариф: {duration_text}\n"
+            f"💵 Сумма: {price}₽\n\n"
+            f"Нажмите кнопку ниже для оплаты:",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+        
+        logger.info(f"Создан платёж #{invoice_id} для пользователя {user_id} ({duration}, {price}₽)")
+    
+    except Exception as e:
+        logger.error(f"Ошибка создания платежа: {e}")
+        await callback.message.answer(f"❌ Ошибка при создании счёта: {str(e)}")
 
 
 @user_router.message(Command("mystatus"))
