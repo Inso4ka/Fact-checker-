@@ -1,11 +1,19 @@
 # Overview
 
-This is a **Telegram fact-checking bot** that uses AI to verify the truthfulness of claims sent by users. The bot leverages Perplexity's AI API (sonar-pro model) to perform fact-checking with web search capabilities and returns structured responses with conclusions, reasoning, and sources.
+This is a **Telegram fact-checking bot with automated subscription payments** that uses AI to verify the truthfulness of claims sent by users.
 
-The application is built as a **Python-based Telegram bot** (`bot.py`) using:
+## Функциональность бота:
+1. **Проверка фактов через AI**: Пользователь отправляет утверждение → бот проверяет его достоверность через Perplexity AI (sonar-pro) → возвращает вывод с источниками
+2. **Автоматическая оплата подписок**: Пользователь выбирает тариф (месяц/полгода/год) → получает ссылку на Robokassa → оплачивает → подписка автоматически активируется
+3. **Система подписок**: Только пользователи с активной подпиской могут проверять факты. Админ может выдавать подписки вручную через команды
+4. **Безопасность**: User ID хешируются через Scrypt (N=8192, r=8, p=1) для защиты приватности
+
+The application is built as a **Python-based Telegram bot** using:
 - **aiogram 3.15.0** - Modern async Telegram Bot framework
-- **OpenAI SDK** - For Perplexity API integration
-- **Long polling** - Simple and reliable message delivery
+- **Robokassa** - Payment gateway integration
+- **PostgreSQL** - Database for subscriptions and payments
+- **aiohttp** - Webhook server for payment notifications
+- **Perplexity AI** - Fact-checking with web search
 
 The bot accepts text messages from users, processes them through Perplexity's AI fact-checking agent, and returns formatted responses in HTML with clear verdicts, explanations, and source citations.
 
@@ -13,9 +21,21 @@ The bot accepts text messages from users, processes them through Perplexity's AI
 
 Preferred communication style: Simple, everyday language.
 
-# Recent Changes (2025-10-06)
+# Recent Changes (2025-10-17)
 
-## Scrypt ID Hashing Implementation (Production Security)
+## Robokassa Payment System Integration
+- **Автоматическая оплата подписок**: Пользователи могут самостоятельно оплачивать подписку через Robokassa
+- **Тарифные планы**: 
+  - Месяц - 1000₽
+  - Полгода - 3600₽  
+  - Год - 6000₽
+- **Удобный интерфейс**: Инлайн-кнопки в команде /start для выбора тарифа
+- **Автоматическая активация**: Подписка выдается автоматически после успешной оплаты
+- **Webhook сервер**: aiohttp сервер на порту 5000 для обработки уведомлений от Robokassa
+- **Таблица payments**: Новая БД для хранения информации о платежах (invoice_id, user_id, amount, duration, status, telegram_user_id)
+- **Уведомления**: Пользователь получает уведомление в бот после успешной оплаты
+
+## Scrypt ID Hashing Implementation (2025-10-06)
 - **Security Enhancement**: User IDs are now hashed using **Scrypt** (production-grade memory-hard KDF)
 - **Scrypt Parameters**: N=8192, r=8, p=1 (optimal balance for security and performance)
 - **Performance**: ~40ms hashing time, ~8MB memory usage, highest security rating (★★★★★)
@@ -44,25 +64,30 @@ app/
 ├── config.py              # Configuration with Pydantic validation
 ├── constants.py           # Shared constants (timezones, durations)
 ├── models/
-│   └── subscription.py    # TypedDict models for type safety
+│   ├── subscription.py    # TypedDict models for subscriptions
+│   └── payment.py        # TypedDict models for payments
 ├── db/
 │   ├── pool.py           # Database connection pool management
 │   └── repositories/
-│       └── subscriptions.py  # Data access layer (CRUD operations)
+│       ├── subscriptions.py  # Subscription data access layer
+│       └── payments.py       # Payment data access layer
 ├── clients/
-│   └── perplexity.py     # Perplexity AI client wrapper
+│   ├── perplexity.py         # Perplexity AI client wrapper
+│   └── robokassa_client.py   # Robokassa payment client
 ├── services/
 │   ├── subscriptions.py  # Business logic for subscriptions
 │   └── notifications.py  # User notification service
 ├── handlers/
 │   ├── admin.py          # Admin command handlers (Router-based)
-│   └── user.py           # User command handlers (Router-based)
+│   └── user.py           # User command handlers + payment callbacks
+├── webhook/
+│   └── robokassa_webhook.py  # Webhook server for Robokassa
 ├── background/
 │   └── cleanup.py        # Background task for expired subscriptions
 ├── utils/
 │   ├── text.py          # Text utilities (message chunking)
 │   └── crypto.py        # Scrypt hashing (N=8192, r=8, p=1)
-└── main.py              # Application entry point
+└── main.py              # Application entry point + webhook server
 bot.py                    # Compatibility wrapper for workflow
 ```
 
