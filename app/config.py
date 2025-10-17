@@ -17,6 +17,12 @@ class Config(BaseModel):
     admin_chat_ids: list[int] = Field(..., description="List of admin Telegram IDs")
     hash_salt: str = Field(..., description="Salt for hashing user IDs")
     
+    # Robokassa настройки
+    robokassa_merchant_login: str = Field(..., description="Robokassa Merchant Login")
+    robokassa_password1: str = Field(..., description="Robokassa Password #1 (for payment links)")
+    robokassa_password2: str = Field(..., description="Robokassa Password #2 (for webhooks)")
+    robokassa_is_test: bool = Field(default=True, description="Robokassa test mode")
+    
     log_level: str = Field(default="INFO", description="Logging level")
     
     @field_validator('admin_chat_ids', mode='before')
@@ -36,6 +42,12 @@ class Config(BaseModel):
         admin_ids = os.getenv("ADMIN_CHAT_ID")
         hash_salt = os.getenv("HASH_SALT")
         
+        # Robokassa параметры
+        robokassa_login = os.getenv("ROBOKASSA_MERCHANT_LOGIN")
+        robokassa_pass1 = os.getenv("ROBOKASSA_PASSWORD1")
+        robokassa_pass2 = os.getenv("ROBOKASSA_PASSWORD2")
+        robokassa_test = os.getenv("ROBOKASSA_IS_TEST", "True").lower() == "true"
+        
         if not telegram_token:
             raise ValueError("TELEGRAM_BOT_TOKEN не установлен")
         if not perplexity_key:
@@ -46,6 +58,12 @@ class Config(BaseModel):
             raise ValueError("ADMIN_CHAT_ID не установлен. Укажите один или несколько Telegram ID через запятую")
         if not hash_salt:
             raise ValueError("HASH_SALT не установлен. Укажите секретную строку для хеширования ID")
+        if not robokassa_login:
+            raise ValueError("ROBOKASSA_MERCHANT_LOGIN не установлен")
+        if not robokassa_pass1:
+            raise ValueError("ROBOKASSA_PASSWORD1 не установлен")
+        if not robokassa_pass2:
+            raise ValueError("ROBOKASSA_PASSWORD2 не установлен")
         
         # Парсим admin_ids через validator
         parsed_ids = cls.parse_admin_ids(admin_ids)
@@ -56,6 +74,10 @@ class Config(BaseModel):
             database_url=db_url,
             admin_chat_ids=parsed_ids,
             hash_salt=hash_salt,
+            robokassa_merchant_login=robokassa_login,
+            robokassa_password1=robokassa_pass1,
+            robokassa_password2=robokassa_pass2,
+            robokassa_is_test=robokassa_test,
             log_level=os.getenv("LOG_LEVEL", "INFO")
         )
 
