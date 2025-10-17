@@ -29,6 +29,15 @@ def is_admin(user_id: int) -> bool:
     return user_id in config.admin_chat_ids
 
 
+def get_payment_keyboard() -> InlineKeyboardMarkup:
+    """Возвращает клавиатуру с кнопками выбора тарифа"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📅 Месяц - 1000₽", callback_data="pay:1m:1000")],
+        [InlineKeyboardButton(text="📅 Полгода - 3600₽", callback_data="pay:6m:3600")],
+        [InlineKeyboardButton(text="📅 Год - 6000₽", callback_data="pay:1y:6000")]
+    ])
+
+
 @user_router.message(Command("start"))
 async def cmd_start(message: Message):
     """Команда /start - приветствие и информация о боте"""
@@ -61,13 +70,7 @@ async def cmd_start(message: Message):
             response += "❌ У вас нет активной подписки.\n\n"
             response += "💳 <b>Выберите тариф для оплаты:</b>"
             
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="📅 Месяц - 1000₽", callback_data="pay:1m:1000")],
-                [InlineKeyboardButton(text="📅 Полгода - 3600₽", callback_data="pay:6m:3600")],
-                [InlineKeyboardButton(text="📅 Год - 6000₽", callback_data="pay:1y:6000")]
-            ])
-            
-            await message.answer(response, reply_markup=keyboard, parse_mode="HTML")
+            await message.answer(response, reply_markup=get_payment_keyboard(), parse_mode="HTML")
 
 
 @user_router.callback_query(lambda c: c.data and c.data.startswith("pay:"))
@@ -158,10 +161,9 @@ async def cmd_mystatus(message: Message):
             )
         else:
             await message.answer(
-                f"❌ У вас нет активной подписки\n"
-                f"🆔 Ваш ID: <code>{message.from_user.id}</code>\n\n"
-                f"Отправьте свой ID администратору для получения доступа.\n\n"
-                f"👤 Администратор: @kroove",
+                f"❌ У вас нет активной подписки.\n\n"
+                f"💳 <b>Выберите тариф для оплаты:</b>",
+                reply_markup=get_payment_keyboard(),
                 parse_mode="HTML"
             )
     
@@ -185,14 +187,12 @@ async def handle_message(message: Message, bot: Bot):
         if not has_subscription:
             await message.answer(
                 f"❌ У вас нет активной подписки.\n\n"
-                f"🆔 Ваш ID: <code>{user_id}</code>\n\n"
-                f"Отправьте свой ID администратору для получения доступа.\n\n"
-                f"👤 Администратор: @kroove",
+                f"💳 <b>Выберите тариф для оплаты:</b>",
+                reply_markup=get_payment_keyboard(),
                 parse_mode="HTML"
             )
             
-            # Уведомляем админов о новом пользователе ТОЛЬКО ОДИН РАЗ
-            # Защита от спама незарегистрированных пользователей
+            # Уведомляем админов о новом пользователе в фоне (без упоминания пользователю)
             if not is_user_notified(user_id):
                 mark_user_notified(user_id)
                 
